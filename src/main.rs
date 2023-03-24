@@ -139,6 +139,10 @@ fn template(rest: &str, config: &RenderConfig) -> (String, usize) {
     templated += config.theme.foreground_colour();
     templated += ")\n";
 
+    templated += "
+        #show <inline>: box
+    ";
+
     templated += "\n";
 
     let template_len = templated.len();
