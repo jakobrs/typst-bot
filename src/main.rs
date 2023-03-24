@@ -9,7 +9,7 @@ struct Data {
     world: Arc<world::SandboxedWorld>,
 }
 
-type Error = Box<dyn std::error::Error + Send + Sync>;
+type Error = TypstBotError;
 type Context<'a> = poise::Context<'a, Data, Error>;
 
 #[derive(Debug)]
@@ -40,6 +40,16 @@ enum RenderError {
     TooManyPages,
 }
 
+#[derive(Error, Debug)]
+enum TypstBotError {
+    #[error("Join error: {0}")]
+    JoinError(#[from] tokio::task::JoinError),
+    #[error("Render error: {0}")]
+    RenderError(#[from] RenderError),
+    #[error("Serenity error: {0}")]
+    SerenityError(#[from] serenity::Error),
+}
+
 /// Renders Typst code in a sandbox
 #[poise::command(prefix_command, track_edits, broadcast_typing)]
 async fn typst(
@@ -52,7 +62,7 @@ async fn typst(
 
     let with_source = world.with_source(&rest);
 
-    let result = tokio::task::spawn_blocking(move || {
+    let image = tokio::task::spawn_blocking(move || {
         let document = typst::compile(&with_source).map_err(|a| SourceErrors(*a))?;
         if let [page] = &document.pages[..] {
             let pixmap = typst::export::render(page, 10., typst::geom::Color::WHITE);
@@ -61,36 +71,17 @@ async fn typst(
             Err(RenderError::TooManyPages)
         }
     })
-    .await;
+    .await??;
 
-    match result {
-        Ok(Ok(image)) => {
-            match ctx
-                .send(|reply| {
-                    reply
-                        .attachment(AttachmentType::Bytes {
-                            data: Cow::Owned(image),
-                            filename: "typst.png".into(),
-                        })
-                        .reply(true)
-                })
-                .await
-            {
-                Ok(_) => (),
-                Err(err) => eprintln!("Failed to send message: {err:?}"),
-            }
-        }
-        Ok(Err(sth)) => {
-            match ctx
-                .send(|reply| reply.content(format!("{sth}")).reply(true))
-                .await
-            {
-                Ok(_) => (),
-                Err(err) => eprintln!("Failed to reply with error message: {err:?}"),
-            }
-        }
-        Err(err) => eprintln!("Join error: {err:?}"),
-    }
+    ctx.send(|reply| {
+        reply
+            .attachment(AttachmentType::Bytes {
+                data: Cow::Owned(image),
+                filename: "typst.png".into(),
+            })
+            .reply(true)
+    })
+    .await?;
 
     Ok(())
 }
