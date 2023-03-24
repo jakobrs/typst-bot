@@ -110,12 +110,21 @@ fn template(rest: &str, config: &RenderConfig) -> String {
     templated
 }
 
-/// Renders Typst code in a sandbox
+/// Renders Typst code in a sandbox.
+///
+/// Aliases:
+/// - typst-light
+/// - typst-dark
+/// - typst-black
+/// - typst-transparent
+/// - typst-trans
+/// - typst-prose
 #[poise::command(
     prefix_command,
     track_edits,
     broadcast_typing,
     aliases(
+        "typst-light",
         "typst-dark",
         "typst-black",
         "typst-transparent",
@@ -132,10 +141,11 @@ async fn typst(
     let world = ctx.data().world.clone();
 
     let theme = match ctx.invoked_command_name() {
-        "typst-transparent" | "typst-trans" => Theme::Transparent,
-        "typst-black" => Theme::Black,
+        "typst-light" | "typst-prose" => Theme::Light,
         "typst-dark" => Theme::Dark,
-        _ => Theme::Light,
+        "typst-black" => Theme::Black,
+        "typst-transparent" | "typst-trans" => Theme::Transparent,
+        _ => Theme::Dark,
     };
     let prose = ctx.invoked_command_name() == "typst-prose";
     let config = RenderConfig { theme, prose };
