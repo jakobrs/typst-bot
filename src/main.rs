@@ -88,6 +88,8 @@ async fn typst(
 
 #[tokio::main]
 async fn main() {
+    tracing_subscriber::fmt::init();
+
     let world = world::SandboxedWorld::new();
 
     let framework = poise::Framework::builder()
