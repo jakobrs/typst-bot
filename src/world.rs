@@ -1,7 +1,12 @@
 use std::sync::Arc;
 
 use comemo::Prehashed;
-use typst::{eval::Library, font::{FontBook, Font}, syntax::Source, World};
+use typst::{
+    eval::Library,
+    font::{Font, FontBook},
+    syntax::Source,
+    World,
+};
 
 pub struct SandboxedWorld {
     library: Prehashed<Library>,

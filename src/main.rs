@@ -17,7 +17,7 @@ struct SourceErrors(Vec<typst::diag::SourceError>);
 
 impl Display for SourceErrors {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        // has to do for now
+        // this will have to do for now
         std::fmt::Debug::fmt(&self.0, f)
     }
 }
@@ -168,6 +168,16 @@ async fn typst(
     Ok(())
 }
 
+#[poise::command(prefix_command)]
+async fn help(
+    ctx: Context<'_>,
+    #[description = "Command to show help about"] command: Option<String>,
+) -> Result<(), TypstBotError> {
+    poise::builtins::help(ctx, command.as_deref(), Default::default()).await?;
+
+    Ok(())
+}
+
 #[tokio::main]
 async fn main() {
     tracing_subscriber::fmt::init();
@@ -178,7 +188,7 @@ async fn main() {
         .token(std::env::var("BOT_TOKEN").expect("Missing BOT_TOKEN env var"))
         .intents(GatewayIntents::non_privileged() | GatewayIntents::MESSAGE_CONTENT)
         .options(poise::FrameworkOptions {
-            commands: vec![typst()],
+            commands: vec![typst(), help()],
             prefix_options: poise::PrefixFrameworkOptions {
                 prefix: Some("-".into()),
                 edit_tracker: Some(poise::EditTracker::for_timespan(
