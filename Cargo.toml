@@ -9,6 +9,7 @@ opt-level = 3
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+ariadne = "0.2.0"
 comemo = { git = "https://github.com/typst/comemo", version = "0.1.0" }
 png = { version = "0.17.7", default-features = false }
 poise = "0.5.2"

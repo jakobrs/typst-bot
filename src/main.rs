@@ -1,4 +1,4 @@
-use std::{borrow::Cow, fmt::Display, sync::Arc};
+use std::{borrow::Cow, fmt::Display, io::Cursor, sync::Arc};
 
 use poise::serenity_prelude::{AttachmentType, GatewayIntents};
 use thiserror::Error;
@@ -30,10 +30,45 @@ impl From<Vec<typst::diag::SourceError>> for SourceErrors {
 
 impl std::error::Error for SourceErrors {}
 
+impl SourceErrors {
+    fn as_ansi_block(&self, source: &str, template_len: usize, world: &dyn typst::World) -> String {
+        use ariadne::{Color, Label, Report, ReportKind, Source};
+        use std::io::Write;
+
+        let source = &source[template_len..];
+
+        let mut output = Vec::new();
+        let mut output_cursor = Cursor::new(&mut output);
+        // let mut colors = ColorGenerator::new();
+        for error in &self.0 {
+            output_cursor.write(b"```ansi\n").unwrap();
+
+            let mut range = error.range(world);
+            range.start -= template_len;
+            range.end -= template_len;
+
+            Report::build(ReportKind::Error, "source.typ", range.start)
+                .with_message("Compilation error")
+                .with_label(
+                    Label::new(("source.typ", range))
+                        .with_color(Color::Yellow)
+                        .with_message(&error.message),
+                )
+                .finish()
+                .write_for_stdout(("source.typ", Source::from(source)), &mut output_cursor)
+                .unwrap();
+
+            output_cursor.write(b"```\n").unwrap();
+        }
+
+        String::from_utf8(output).unwrap()
+    }
+}
+
 #[derive(Error, Debug)]
 enum RenderError {
     #[error("Compilation errors: {0}")]
-    SourceError(#[from] SourceErrors),
+    SourceErrors(#[from] SourceErrors),
     #[error("PNG encoding error: {0}")]
     PngEncodingError(#[from] png::EncodingError),
     #[error("Too many pages")]
@@ -91,7 +126,7 @@ struct RenderConfig {
     prose: bool,
 }
 
-fn template(rest: &str, config: &RenderConfig) -> String {
+fn template(rest: &str, config: &RenderConfig) -> (String, usize) {
     let mut templated = String::new();
 
     if config.prose {
@@ -105,9 +140,11 @@ fn template(rest: &str, config: &RenderConfig) -> String {
     templated += ")\n";
 
     templated += "\n";
+
+    let template_len = templated.len();
     templated += rest;
 
-    templated
+    (templated, template_len)
 }
 
 /// Renders Typst code in a sandbox.
@@ -150,30 +187,44 @@ async fn typst(
     let prose = ctx.invoked_command_name() == "typst-prose";
     let config = RenderConfig { theme, prose };
 
-    let templated_source = template(&rest, &config);
+    let (templated_source, template_len) = template(&rest, &config);
 
-    let with_source = world.with_source(&templated_source);
+    let with_source = Arc::new(world.with_source(&templated_source));
 
-    let image = tokio::task::spawn_blocking(move || {
-        let document = typst::compile(&with_source).map_err(|a| SourceErrors(*a))?;
-        if let [page] = &document.pages[..] {
-            let pixmap = typst::export::render(page, 10., config.theme.background_colour());
-            Ok(pixmap.encode_png()?)
-        } else {
-            Err(RenderError::TooManyPages)
+    let image = tokio::task::spawn_blocking({
+        let with_source = with_source.clone();
+        move || {
+            let document = typst::compile(&*with_source).map_err(|a| SourceErrors(*a))?;
+            if let [page] = &document.pages[..] {
+                let pixmap = typst::export::render(page, 10., config.theme.background_colour());
+                Ok(pixmap.encode_png()?)
+            } else {
+                Err(RenderError::TooManyPages)
+            }
         }
     })
-    .await??;
-
-    ctx.send(|reply| {
-        reply
-            .attachment(AttachmentType::Bytes {
-                data: Cow::Owned(image),
-                filename: "typst.png".into(),
-            })
-            .reply(true)
-    })
     .await?;
+
+    match image {
+        Ok(image) => {
+            ctx.send(|reply| {
+                reply
+                    .attachment(AttachmentType::Bytes {
+                        data: Cow::Owned(image),
+                        filename: "typst.png".into(),
+                    })
+                    .reply(true)
+            })
+            .await?;
+        }
+        Err(RenderError::SourceErrors(errors)) => {
+            ctx.send(|reply| {
+                reply.content(errors.as_ansi_block(&templated_source, template_len, &*with_source))
+            })
+            .await?;
+        }
+        Err(err) => return Err(err.into()),
+    };
 
     Ok(())
 }
