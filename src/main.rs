@@ -50,8 +50,79 @@ enum TypstBotError {
     SerenityError(#[from] serenity::Error),
 }
 
+#[derive(Clone, Copy)]
+enum Theme {
+    Light,
+    Dark,
+    Black,
+    Transparent,
+}
+
+impl Theme {
+    fn background_colour(self) -> typst::geom::Color {
+        match self {
+            Theme::Light => typst::geom::Color::WHITE,
+            Theme::Dark => typst::geom::Color::Rgba(typst::geom::RgbaColor {
+                r: 0x31,
+                g: 0x33,
+                b: 0x38,
+                a: 0xff,
+            }),
+            Theme::Black => typst::geom::Color::BLACK,
+            Theme::Transparent => typst::geom::Color::Rgba(typst::geom::RgbaColor {
+                r: 0,
+                g: 0,
+                b: 0,
+                a: 0,
+            }),
+        }
+    }
+
+    fn foreground_colour(self) -> &'static str {
+        match self {
+            Theme::Light => "black",
+            Theme::Dark | Theme::Black | Theme::Transparent => "white",
+        }
+    }
+}
+
+struct RenderConfig {
+    theme: Theme,
+    prose: bool,
+}
+
+fn template(rest: &str, config: &RenderConfig) -> String {
+    let mut templated = String::new();
+
+    if config.prose {
+        templated += "#set page(width: 15cm, height: auto, margin: 1cm)\n";
+    } else {
+        templated += "#set page(width: auto, height: auto, margin: 0.5cm)\n";
+    }
+
+    templated += "#set text(";
+    templated += config.theme.foreground_colour();
+    templated += ")\n";
+
+    templated += "\n";
+    templated += rest;
+
+    templated
+}
+
 /// Renders Typst code in a sandbox
-#[poise::command(prefix_command, track_edits, broadcast_typing)]
+#[poise::command(
+    prefix_command,
+    track_edits,
+    broadcast_typing,
+    aliases(
+        "typst-dark",
+        "typst-black",
+        "typst-transparent",
+        "typst-trans",
+        "typst-prose"
+    )
+)]
 async fn typst(
     ctx: Context<'_>,
     #[description = "Code"]
@@ -60,12 +131,23 @@ async fn typst(
 ) -> Result<(), Error> {
     let world = ctx.data().world.clone();
 
-    let with_source = world.with_source(&rest);
+    let theme = match ctx.invoked_command_name() {
+        "typst-transparent" | "typst-trans" => Theme::Transparent,
+        "typst-black" => Theme::Black,
+        "typst-dark" => Theme::Dark,
+        _ => Theme::Light,
+    };
+    let prose = ctx.invoked_command_name() == "typst-prose";
+    let config = RenderConfig { theme, prose };
+
+    let templated_source = template(&rest, &config);
+
+    let with_source = world.with_source(&templated_source);
 
     let image = tokio::task::spawn_blocking(move || {
         let document = typst::compile(&with_source).map_err(|a| SourceErrors(*a))?;
         if let [page] = &document.pages[..] {
-            let pixmap = typst::export::render(page, 10., typst::geom::Color::WHITE);
+            let pixmap = typst::export::render(page, 10., config.theme.background_colour());
             Ok(pixmap.encode_png()?)
         } else {
             Err(RenderError::TooManyPages)

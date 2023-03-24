@@ -45,14 +45,9 @@ impl SandboxedWorld {
     }
 
     pub fn with_source(self: Arc<Self>, source: &str) -> WithSource {
-        let mut templated_source = String::new();
-
-        templated_source += "#set page(width: auto, height: auto, margin: 1cm)\n\n";
-        templated_source += source;
-
         WithSource {
             sandbox: self,
-            source: Source::detached(templated_source),
+            source: Source::detached(source),
         }
     }
 }
