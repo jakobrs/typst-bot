@@ -94,6 +94,16 @@ enum Theme {
 }
 
 impl Theme {
+    fn from_command_name(name: &str) -> Self {
+        match name {
+            "typst-light" | "typst-prose" => Theme::Light,
+            "typst-dark" => Theme::Dark,
+            "typst-black" => Theme::Black,
+            "typst-transparent" | "typst-trans" => Theme::Transparent,
+            _ => Theme::Dark,
+        }
+    }
+
     fn background_colour(self) -> typst::geom::Color {
         match self {
             Theme::Light => typst::geom::Color::WHITE,
@@ -153,6 +163,10 @@ fn template(rest: &str, config: &RenderConfig) -> (String, usize) {
 
 /// Renders Typst code in a sandbox.
 ///
+/// Usage: -typst (code)
+///
+/// Use one of these aliases to customise the template and theme
+///
 /// Aliases:
 /// - typst-light
 /// - typst-dark
@@ -181,15 +195,10 @@ async fn typst(
 ) -> Result<(), Error> {
     let world = ctx.data().world.clone();
 
-    let theme = match ctx.invoked_command_name() {
-        "typst-light" | "typst-prose" => Theme::Light,
-        "typst-dark" => Theme::Dark,
-        "typst-black" => Theme::Black,
-        "typst-transparent" | "typst-trans" => Theme::Transparent,
-        _ => Theme::Dark,
+    let config = RenderConfig {
+        theme: Theme::from_command_name(ctx.invoked_command_name()),
+        prose: ctx.invoked_command_name() == "typst-prose",
     };
-    let prose = ctx.invoked_command_name() == "typst-prose";
-    let config = RenderConfig { theme, prose };
 
     let (templated_source, template_len) = template(&rest, &config);
 
