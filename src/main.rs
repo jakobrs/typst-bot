@@ -165,7 +165,7 @@ fn template(rest: &str, config: &RenderConfig) -> (String, usize) {
 ///
 /// Usage: -typst (code)
 ///
-/// Use one of these aliases to customise the template and theme
+/// Use one of these aliases to customise the template and theme:
 ///
 /// Aliases:
 /// - typst-light
