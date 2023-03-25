@@ -232,7 +232,9 @@ async fn typst(
         }
         Err(RenderError::SourceErrors(errors)) => {
             ctx.send(|reply| {
-                reply.content(errors.as_ansi_block(&templated_source, template_len, &*with_source))
+                reply
+                    .content(errors.as_ansi_block(&templated_source, template_len, &*with_source))
+                    .reply(true)
             })
             .await?;
         }
