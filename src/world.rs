@@ -58,7 +58,7 @@ impl SandboxedWorld {
 }
 
 impl World for WithSource {
-    fn library(&self) -> &comemo::Prehashed<typst::eval::Library> {
+    fn library(&self) -> &Prehashed<Library> {
         &self.sandbox.library
     }
 
@@ -78,7 +78,7 @@ impl World for WithSource {
         }
     }
 
-    fn book(&self) -> &comemo::Prehashed<typst::font::FontBook> {
+    fn book(&self) -> &Prehashed<FontBook> {
         &self.sandbox.fontbook
     }
 

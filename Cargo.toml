@@ -10,7 +10,7 @@ opt-level = 3
 
 [dependencies]
 ariadne = "0.2.0"
-comemo = { git = "https://github.com/typst/comemo", version = "0.1.0" }
+comemo = "0.2.0"
 png = { version = "0.17.7", default-features = false }
 poise = "0.5.2"
 serenity = { version = "0.11.5", default-features = false, features = ["rustls_backend"] }
