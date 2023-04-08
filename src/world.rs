@@ -24,15 +24,21 @@ impl SandboxedWorld {
         let mut fontbook = FontBook::new();
         let mut fonts = vec![];
 
-        const EMBEDDED_FONTS: [&[u8]; 8] = [
+        const EMBEDDED_FONTS: [&[u8]; 14] = [
             include_bytes!("../assets/fonts/LinLibertine_R.ttf"),
             include_bytes!("../assets/fonts/LinLibertine_RB.ttf"),
             include_bytes!("../assets/fonts/LinLibertine_RBI.ttf"),
             include_bytes!("../assets/fonts/LinLibertine_RI.ttf"),
             include_bytes!("../assets/fonts/NewCMMath-Book.otf"),
             include_bytes!("../assets/fonts/NewCMMath-Regular.otf"),
+            include_bytes!("../assets/fonts/NewCM10-Regular.otf"),
+            include_bytes!("../assets/fonts/NewCM10-Bold.otf"),
+            include_bytes!("../assets/fonts/NewCM10-Italic.otf"),
+            include_bytes!("../assets/fonts/NewCM10-BoldItalic.otf"),
             include_bytes!("../assets/fonts/DejaVuSansMono.ttf"),
             include_bytes!("../assets/fonts/DejaVuSansMono-Bold.ttf"),
+            include_bytes!("../assets/fonts/DejaVuSansMono-Oblique.ttf"),
+            include_bytes!("../assets/fonts/DejaVuSansMono-BoldOblique.ttf"),
         ];
 
         for file in EMBEDDED_FONTS {
