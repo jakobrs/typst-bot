@@ -1,4 +1,4 @@
-use std::{borrow::Cow, fmt::Display, io::Cursor, sync::Arc};
+use std::{borrow::Cow, fmt::Display, fmt::Write, io::Cursor, sync::Arc};
 
 use poise::serenity_prelude::{AttachmentType, GatewayIntents};
 use thiserror::Error;
@@ -244,6 +244,41 @@ async fn typst(
     Ok(())
 }
 
+/// Prints the list of loaded fonts
+///
+/// Usage: -fonts [with_variants]
+#[poise::command(prefix_command)]
+async fn fonts(ctx: Context<'_>, #[flag] with_variants: bool) -> Result<(), TypstBotError> {
+    let world = ctx.data().world.clone();
+
+    let mut message = String::new();
+
+    for (name, fonts) in world.fontbook.families() {
+        writeln!(&mut message, "Family: {name}").unwrap();
+
+        if with_variants {
+            for font_info in fonts {
+                writeln!(
+                    &mut message,
+                    "-> Style: {:?}, weight: {:?}, strech: {:?}",
+                    font_info.variant.style, font_info.variant.weight, font_info.variant.stretch,
+                )
+                .unwrap();
+            }
+        }
+    }
+
+    ctx.send(|reply| {
+        reply.attachment(AttachmentType::Bytes {
+            data: Cow::Owned(message.into_bytes()),
+            filename: "fonts.txt".into(),
+        })
+    })
+    .await?;
+
+    Ok(())
+}
+
 #[poise::command(prefix_command)]
 async fn help(
     ctx: Context<'_>,
@@ -264,7 +299,7 @@ async fn main() {
         .token(std::env::var("BOT_TOKEN").expect("Missing BOT_TOKEN env var"))
         .intents(GatewayIntents::non_privileged() | GatewayIntents::MESSAGE_CONTENT)
         .options(poise::FrameworkOptions {
-            commands: vec![typst(), help()],
+            commands: vec![typst(), fonts(), help()],
             prefix_options: poise::PrefixFrameworkOptions {
                 prefix: Some("-".into()),
                 edit_tracker: Some(poise::EditTracker::for_timespan(

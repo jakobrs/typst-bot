@@ -10,7 +10,7 @@ use typst::{
 
 pub struct SandboxedWorld {
     library: Prehashed<Library>,
-    fontbook: Prehashed<FontBook>,
+    pub(crate) fontbook: Prehashed<FontBook>,
     fonts: Vec<Font>,
 }
 
