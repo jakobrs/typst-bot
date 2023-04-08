@@ -18,5 +18,5 @@ thiserror = "1.0.40"
 tiny-skia = "0.6.6"
 tokio = { version = "1.26.0", features = ["rt", "rt-multi-thread", "macros"] }
 tracing-subscriber = "0.3.16"
-typst = { git = "https://github.com/jakobrs/typst", branch = "personal", version = "0.0.0" }
-typst-library = { git = "https://github.com/jakobrs/typst", branch = "personal", version = "0.0.0" }
+typst = { git = "https://github.com/jakobrs/typst", branch = "personal", version = "0.1.0" }
+typst-library = { git = "https://github.com/jakobrs/typst", branch = "personal", version = "0.1.0" }
