@@ -272,7 +272,7 @@ async fn fonts(ctx: Context<'_>, #[flag] with_variants: bool) -> Result<(), Typs
         reply.attachment(AttachmentType::Bytes {
             data: Cow::Owned(message.into_bytes()),
             filename: "fonts.txt".into(),
-        })
+        }).reply(true)
     })
     .await?;
 
