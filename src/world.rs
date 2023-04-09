@@ -81,20 +81,23 @@ impl SandboxedWorld {
         let font_paths = ["/usr/share/fonts", "/usr/local/share/fonts"].map(Path::new);
 
         for dir in font_paths {
-            for entry in walkdir::WalkDir::new(dir).follow_links(true) {
-                let entry = entry?;
+            // Intentially ignoring TOCTOU attacks here
+            if dir.exists() {
+                for entry in walkdir::WalkDir::new(dir).follow_links(true) {
+                    let entry = entry?;
 
-                match entry.path().extension().and_then(|s| s.to_str()) {
-                    Some("ttf" | "otf" | "ttc" | "otc" | "TTF" | "OTF" | "TTC" | "OTC") => {
-                        // NOTE: this is probably a bad idea
-                        let contents: &'static [u8] = std::fs::read(entry.path())?.leak();
+                    match entry.path().extension().and_then(|s| s.to_str()) {
+                        Some("ttf" | "otf" | "ttc" | "otc" | "TTF" | "OTF" | "TTC" | "OTC") => {
+                            // NOTE: this is probably a bad idea
+                            let contents: &'static [u8] = std::fs::read(entry.path())?.leak();
 
-                        for font in Font::iter(typst::util::Buffer::from_static(contents)) {
-                            fontbook.push(font.info().clone());
-                            fonts.push(font);
+                            for font in Font::iter(typst::util::Buffer::from_static(contents)) {
+                                fontbook.push(font.info().clone());
+                                fonts.push(font);
+                            }
                         }
+                        _ => (),
                     }
-                    _ => (),
                 }
             }
         }
