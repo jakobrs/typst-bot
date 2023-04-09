@@ -16,7 +16,7 @@ pub struct SandboxedWorld {
 
 pub struct WithSource {
     sandbox: Arc<SandboxedWorld>,
-    pub source: Source,
+    pub(crate) source: Source,
 }
 
 impl SandboxedWorld {
