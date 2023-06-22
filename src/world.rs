@@ -2,7 +2,7 @@ use std::{path::Path, sync::Arc};
 
 use comemo::Prehashed;
 use typst::{
-    eval::Library,
+    eval::{Datetime, Library},
     font::{Font, FontBook},
     syntax::Source,
     World,
@@ -144,5 +144,9 @@ impl World for WithSource {
 
     fn file(&self, _path: &std::path::Path) -> typst::diag::FileResult<typst::util::Buffer> {
         Err(typst::diag::FileError::AccessDenied)
+    }
+
+    fn today(&self, _offset: Option<i64>) -> Option<Datetime> {
+        None
     }
 }
