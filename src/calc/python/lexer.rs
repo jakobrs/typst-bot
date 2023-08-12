@@ -134,6 +134,14 @@ pub fn lex(expr: &str) -> Result<Vec<Token>, PythonLexerError> {
             tokens.push(Token::ArithOp(ArithOp::Mul));
         } else if expr.eat(b"/") {
             tokens.push(Token::ArithOp(ArithOp::Div));
+        } else if expr.eat(b"<<") {
+            tokens.push(Token::ArithOp(ArithOp::LeftShift));
+        } else if expr.eat(b">>") {
+            tokens.push(Token::ArithOp(ArithOp::RightShift));
+        } else if expr.eat(b"&") {
+            tokens.push(Token::ArithOp(ArithOp::BitAnd));
+        } else if expr.eat(b"|") {
+            tokens.push(Token::ArithOp(ArithOp::BitOr));
         } else if expr.eat(b"(") {
             tokens.push(Token::LeftParen);
         } else if expr.eat(b")") {
@@ -160,7 +168,7 @@ pub fn lex(expr: &str) -> Result<Vec<Token>, PythonLexerError> {
             tokens.push(Token::Lit(Value::Int(
                 std::str::from_utf8(m.as_bytes()).unwrap().parse().unwrap(),
             )));
-        } else if let Some(m) = expr.eat_regex_word(regex!(r"^[[:alpha:]][[:alpha:][:digit:]]*")) {
+        } else if let Some(m) = expr.eat_regex_word(regex!(r"^[[:alpha:]][[:alpha:][:digit:]_]*")) {
             tokens.push(Token::Global(
                 String::from_utf8(m.as_bytes().to_vec()).unwrap(),
             ));

@@ -84,8 +84,8 @@ enum TypstBotError {
     RenderError(#[from] RenderError),
     #[error("Serenity error: {0}")]
     SerenityError(#[from] serenity::Error),
-    #[error("Evaluation error: {0}")]
-    EvaluationError(#[from] calc::EvaluationError),
+    #[error("Calculation error: {0}")]
+    CalcError(#[from] calc::CalcError),
 }
 
 #[derive(Clone, Copy)]
@@ -292,9 +292,10 @@ async fn fonts(ctx: Context<'_>, #[flag] with_variants: bool) -> Result<(), Typs
 #[poise::command(prefix_command)]
 async fn calc(ctx: Context<'_>, #[rest] expr: String) -> Result<(), TypstBotError> {
     let value = {
-        let expression_tree = calc::parse_python(&expr);
+        let expression_tree = calc::parse_python(&expr)?;
 
-        calc::evaluate(expression_tree, &*calc::DEFAULT_LOOKUP_CONTEXT)?
+        calc::evaluate(expression_tree, &*calc::DEFAULT_LOOKUP_CONTEXT)
+            .map_err(calc::CalcError::EvaluationError)?
     };
 
     ctx.send(|reply| reply.content(format!("{value}")).reply(true))

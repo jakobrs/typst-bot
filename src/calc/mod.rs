@@ -5,6 +5,8 @@ use std::{collections::HashMap, fmt::Display, sync::Arc};
 use once_cell::sync::Lazy;
 use thiserror::Error;
 
+use self::python::lexer::PythonLexerError;
+
 // Data types
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub enum ArithOp {
@@ -14,6 +16,10 @@ pub enum ArithOp {
     Div,
     FloorDiv,
     Pow,
+    LeftShift,
+    RightShift,
+    BitAnd,
+    BitOr,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
@@ -57,6 +63,16 @@ pub enum EvaluationError {
     NoSuchFunction(String),
     #[error("Arity error: Expected {min}..={max}, got {got}")]
     ArityError { min: usize, max: usize, got: usize },
+    #[error("{0}")]
+    GenericError(String),
+}
+
+#[derive(Error, Debug)]
+pub enum CalcError {
+    #[error("Lexer error: {0}")]
+    PythonLexerError(#[from] PythonLexerError),
+    #[error("Evaluation error: {0}")]
+    EvaluationError(#[from] EvaluationError),
 }
 
 pub struct LookupContext {
@@ -105,6 +121,10 @@ impl Operator {
             Self::ArithOp(ArithOp::Div) => Ok(Arc::new(globals::div)),
             Self::ArithOp(ArithOp::FloorDiv) => Ok(Arc::new(globals::floor_div)),
             Self::ArithOp(ArithOp::Pow) => Ok(Arc::new(globals::pow)),
+            Self::ArithOp(ArithOp::LeftShift) => Ok(Arc::new(globals::left_shift)),
+            Self::ArithOp(ArithOp::RightShift) => Ok(Arc::new(globals::right_shift)),
+            Self::ArithOp(ArithOp::BitAnd) => Ok(Arc::new(globals::bit_and)),
+            Self::ArithOp(ArithOp::BitOr) => Ok(Arc::new(globals::bit_or)),
             Self::Named(name) => lookup_context
                 .functions
                 .get(&name)
@@ -219,30 +239,183 @@ pub mod globals {
         Ok(match v {
             [Value::Int(n)] => Value::Int(-n),
             [Value::Float(n)] => Value::Float(-n),
-            [x] => return Err(EvaluationError::TypeError { expected: Type::Numeric, got: x.get_type() }),
-            _ => return Err(EvaluationError::ArityError { min: 1, max: 1, got: v.len() }),
+            [x] => {
+                return Err(EvaluationError::TypeError {
+                    expected: Type::Numeric,
+                    got: x.get_type(),
+                })
+            }
+            _ => {
+                return Err(EvaluationError::ArityError {
+                    min: 1,
+                    max: 1,
+                    got: v.len(),
+                })
+            }
         })
     }
 
-    pub fn pow(_v: &[Value]) -> Result<Value, EvaluationError> {
-        todo!()
+    pub fn left_shift(v: &[Value]) -> Result<Value, EvaluationError> {
+        match v {
+            [Value::Int(a), Value::Int(b)] => Ok(Value::Int(a << b)),
+            [Value::Int(_), b] => Err(EvaluationError::TypeError {
+                expected: Type::Int,
+                got: b.get_type(),
+            }),
+            [a, _] => Err(EvaluationError::TypeError {
+                expected: Type::Int,
+                got: a.get_type(),
+            }),
+            _ => Err(EvaluationError::ArityError {
+                min: 2,
+                max: 2,
+                got: v.len(),
+            }),
+        }
     }
 
-    pub fn exp(_v: &[Value]) -> Result<Value, EvaluationError> {
-        todo!()
+    pub fn right_shift(v: &[Value]) -> Result<Value, EvaluationError> {
+        match v {
+            [Value::Int(a), Value::Int(b)] => Ok(Value::Int(a >> b)),
+            [Value::Int(_), b] => Err(EvaluationError::TypeError {
+                expected: Type::Int,
+                got: b.get_type(),
+            }),
+            [a, _] => Err(EvaluationError::TypeError {
+                expected: Type::Int,
+                got: a.get_type(),
+            }),
+            _ => Err(EvaluationError::ArityError {
+                min: 2,
+                max: 2,
+                got: v.len(),
+            }),
+        }
     }
 
-    pub fn log(_v: &[Value]) -> Result<Value, EvaluationError> {
-        todo!()
+    pub fn bit_and(v: &[Value]) -> Result<Value, EvaluationError> {
+        let mut result = -1i64;
+
+        for arg in v {
+            let Value::Int(arg) = arg else {
+                return Err(EvaluationError::TypeError { expected: Type::Int, got: arg.get_type() });
+            };
+
+            result &= arg;
+        }
+
+        Ok(Value::Int(result))
     }
 
-    pub fn log2(_v: &[Value]) -> Result<Value, EvaluationError> {
-        todo!()
+    pub fn bit_or(v: &[Value]) -> Result<Value, EvaluationError> {
+        let mut result = 0i64;
+
+        for arg in v {
+            let Value::Int(arg) = arg else {
+                return Err(EvaluationError::TypeError { expected: Type::Int, got: arg.get_type() });
+            };
+
+            result |= arg;
+        }
+
+        Ok(Value::Int(result))
+    }
+
+    pub fn pow(v: &[Value]) -> Result<Value, EvaluationError> {
+        match *v {
+            [Value::Int(base), Value::Int(exp)] => Ok(Value::Int(base.pow(exp as u32))),
+            [Value::Int(base), Value::Float(exp)] => Ok(Value::Float((base as f64).powf(exp))),
+            [Value::Float(base), Value::Int(exp)] => Ok(Value::Float(base.powi(exp as i32))),
+            [Value::Float(base), Value::Float(exp)] => Ok(Value::Float(base.powf(exp))),
+            [Value::Int(_base), Value::Int(_exp), Value::Int(_modulus)] => todo!(),
+            _ => Err(EvaluationError::GenericError(
+                "The arguments to the pow function were incorrect".into(),
+            )),
+        }
+    }
+
+    pub fn exp(v: &[Value]) -> Result<Value, EvaluationError> {
+        match *v {
+            [Value::Int(base)] => Ok(Value::Float((base as f64).exp())),
+            [Value::Float(base)] => Ok(Value::Float(base.exp())),
+            [arg] => Err(EvaluationError::TypeError {
+                expected: Type::Numeric,
+                got: arg.get_type(),
+            }),
+            _ => Err(EvaluationError::ArityError {
+                min: 1,
+                max: 1,
+                got: v.len(),
+            }),
+        }
+    }
+
+    pub fn log(v: &[Value]) -> Result<Value, EvaluationError> {
+        match *v {
+            [Value::Int(base)] => Ok(Value::Float((base as f64).log(1f64.exp()))),
+            [Value::Float(base)] => Ok(Value::Float(base.log(1f64.exp()))),
+            [arg] => Err(EvaluationError::TypeError {
+                expected: Type::Numeric,
+                got: arg.get_type(),
+            }),
+            _ => Err(EvaluationError::ArityError {
+                min: 1,
+                max: 1,
+                got: v.len(),
+            }),
+        }
+    }
+
+    pub fn log2(v: &[Value]) -> Result<Value, EvaluationError> {
+        match *v {
+            [Value::Int(base)] => Ok(Value::Float((base as f64).log2())),
+            [Value::Float(base)] => Ok(Value::Float(base.log2())),
+            [arg] => Err(EvaluationError::TypeError {
+                expected: Type::Numeric,
+                got: arg.get_type(),
+            }),
+            _ => Err(EvaluationError::ArityError {
+                min: 1,
+                max: 1,
+                got: v.len(),
+            }),
+        }
+    }
+
+    pub fn ilog2(v: &[Value]) -> Result<Value, EvaluationError> {
+        match *v {
+            [Value::Int(base)] => Ok(Value::Int(base.ilog2() as i64)),
+            [arg] => Err(EvaluationError::TypeError {
+                expected: Type::Int,
+                got: arg.get_type(),
+            }),
+            _ => Err(EvaluationError::ArityError {
+                min: 1,
+                max: 1,
+                got: v.len(),
+            }),
+        }
+    }
+
+    pub fn sqrt(v: &[Value]) -> Result<Value, EvaluationError> {
+        match *v {
+            [Value::Int(base)] => Ok(Value::Float((base as f64).sqrt())),
+            [Value::Float(base)] => Ok(Value::Float(base.sqrt())),
+            [arg] => Err(EvaluationError::TypeError {
+                expected: Type::Numeric,
+                got: arg.get_type(),
+            }),
+            _ => Err(EvaluationError::ArityError {
+                min: 1,
+                max: 1,
+                got: v.len(),
+            }),
+        }
     }
 }
 
-pub static DEFAULT_LOOKUP_CONTEXT: Lazy<LookupContext> = Lazy::new(|| {
-    let functions = HashMap::from([
+pub static DEFAULT_LOOKUP_CONTEXT: Lazy<LookupContext> = Lazy::new(|| LookupContext {
+    functions: HashMap::from([
         ("add".to_string(), Arc::new(globals::add) as OperatorT),
         ("sum".to_string(), Arc::new(globals::add)),
         ("sub".to_string(), Arc::new(globals::sub)),
@@ -250,18 +423,23 @@ pub static DEFAULT_LOOKUP_CONTEXT: Lazy<LookupContext> = Lazy::new(|| {
         ("div".to_string(), Arc::new(globals::div)),
         ("floor_div".to_string(), Arc::new(globals::floor_div)),
         ("negate".to_string(), Arc::new(globals::negate)),
+        ("left_shift".to_string(), Arc::new(globals::left_shift)),
+        ("right_shift".to_string(), Arc::new(globals::right_shift)),
+        ("bit_and".to_string(), Arc::new(globals::bit_and)),
+        ("bit_or".to_string(), Arc::new(globals::bit_or)),
         ("pow".to_string(), Arc::new(globals::pow)),
         ("exp".to_string(), Arc::new(globals::exp)),
         ("log".to_string(), Arc::new(globals::log)),
         ("log2".to_string(), Arc::new(globals::log2)),
-    ]);
-    let constants = HashMap::from([("pi".to_string(), Value::Float(3.14159265358979))]);
-
-    LookupContext {
-        functions,
-        constants,
-    }
+        ("ilog2".to_string(), Arc::new(globals::ilog2)),
+        ("sqrt".to_string(), Arc::new(globals::sqrt)),
+    ]),
+    constants: HashMap::from([
+        ("pi".to_string(), Value::Float(3.14159265358979)),
+        ("e".to_string(), Value::Float(1f64.exp())),
+    ]),
 });
+
 // Functions
 pub fn evaluate(
     tree: ExpressionTree,
@@ -283,6 +461,6 @@ pub fn evaluate(
     }
 }
 
-pub fn parse_python(expr: &str) -> ExpressionTree {
-    python::parser::parse(python::lexer::lex(expr).unwrap())
+pub fn parse_python(expr: &str) -> Result<ExpressionTree, CalcError> {
+    Ok(python::parser::parse(python::lexer::lex(expr)?))
 }
