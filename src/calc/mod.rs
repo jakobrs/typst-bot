@@ -34,11 +34,13 @@ pub enum Type {
 
 pub type OperatorT = Arc<dyn Fn(&[Value]) -> Result<Value, EvaluationError> + Send + Sync>;
 
+#[derive(Debug, Clone)]
 pub enum Operator {
     ArithOp(ArithOp),
     Named(String),
 }
 
+#[derive(Debug, Clone)]
 pub enum ExpressionTree {
     Value(Value),
     Constant(String),
