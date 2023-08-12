@@ -147,7 +147,7 @@ pub fn lex(expr: &str) -> Result<Vec<Token>, PythonLexerError> {
         } else if expr.eat_word(b"false") {
             tokens.push(Token::Lit(Value::Bool(false)));
         } else if let Some(m) = expr.eat_regex_word(regex!(
-            r"^[[:digit:]]+\.[[:digit:]]*f?|[[:digit:]]*\.[[:digit:]]+f?|[[:digit:]]f"
+            r"^[[:digit:]]+\.[[:digit:]]*f?|[[:digit:]]*\.[[:digit:]]+f?|[[:digit:]]f|[[:digit:]]+e[[:digit:]]+"
         )) {
             let mut text = m.as_bytes();
             if text.last() == Some(&b'f') {
