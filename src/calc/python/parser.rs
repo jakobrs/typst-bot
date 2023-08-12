@@ -50,6 +50,7 @@ pub fn parse(tokens: impl Into<Vec<Token>>) -> ExpressionTree {
             }
             Token::Global(name) => {
                 if matches!(ctx.peek(), Some(Token::LeftParen)) {
+                    ctx.advance();
                     // Function application
                     let mut args = vec![];
 
@@ -95,6 +96,18 @@ pub fn parse(tokens: impl Into<Vec<Token>>) -> ExpressionTree {
     }
 
     fn parse_term(ctx: &mut ParserContext) -> ExpressionTree {
+        let mut sign = false;
+        loop {
+            match ctx.peek() {
+                Some(Token::ArithOp(ArithOp::Plus)) => ctx.advance(),
+                Some(Token::ArithOp(ArithOp::Minus)) => {
+                    ctx.advance();
+                    sign = !sign;
+                }
+                _ => break,
+            }
+        }
+
         let mut factor = parse_factor(ctx);
 
         while matches!(
@@ -110,7 +123,11 @@ pub fn parse(tokens: impl Into<Vec<Token>>) -> ExpressionTree {
             factor = ExpressionTree::Apply(Operator::ArithOp(op), vec![factor, next_factor]);
         }
 
-        factor
+        if sign {
+            ExpressionTree::Apply(Operator::Named("negate".to_string()), vec![factor])
+        } else {
+            factor
+        }
     }
 
     fn parse_expression(ctx: &mut ParserContext) -> ExpressionTree {

@@ -53,6 +53,8 @@ pub enum EvaluationError {
     NoSuchConstant(String),
     #[error("There's no registered function with the name {0:?}")]
     NoSuchFunction(String),
+    #[error("Arity error: Expected {min}..={max}, got {got}")]
+    ArityError { min: usize, max: usize, got: usize },
 }
 
 pub struct LookupContext {
@@ -211,6 +213,15 @@ pub mod globals {
         Ok(Value::Int(result))
     }
 
+    pub fn negate(v: &[Value]) -> Result<Value, EvaluationError> {
+        Ok(match v {
+            [Value::Int(n)] => Value::Int(-n),
+            [Value::Float(n)] => Value::Float(-n),
+            [x] => return Err(EvaluationError::TypeError { expected: Type::Numeric, got: x.get_type() }),
+            _ => return Err(EvaluationError::ArityError { min: 1, max: 1, got: v.len() }),
+        })
+    }
+
     pub fn pow(_v: &[Value]) -> Result<Value, EvaluationError> {
         todo!()
     }
@@ -236,12 +247,13 @@ pub static DEFAULT_LOOKUP_CONTEXT: Lazy<LookupContext> = Lazy::new(|| {
         ("mul".to_string(), Arc::new(globals::mul)),
         ("div".to_string(), Arc::new(globals::div)),
         ("floor_div".to_string(), Arc::new(globals::floor_div)),
+        ("negate".to_string(), Arc::new(globals::negate)),
         ("pow".to_string(), Arc::new(globals::pow)),
         ("exp".to_string(), Arc::new(globals::exp)),
         ("log".to_string(), Arc::new(globals::log)),
         ("log2".to_string(), Arc::new(globals::log2)),
     ]);
-    let constants = HashMap::from([("pi".to_string(), Value::Float(3.14))]);
+    let constants = HashMap::from([("pi".to_string(), Value::Float(3.14159265358979))]);
 
     LookupContext {
         functions,
@@ -270,7 +282,5 @@ pub fn evaluate(
 }
 
 pub fn parse_python(expr: &str) -> ExpressionTree {
-    let tokens = python::lexer::lex(expr).unwrap();
-    eprintln!("Tokens: {tokens:?}");
-    python::parser::parse(tokens)
+    python::parser::parse(python::lexer::lex(expr).unwrap())
 }
