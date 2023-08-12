@@ -3,6 +3,7 @@ use std::{borrow::Cow, fmt::Display, fmt::Write, io::Cursor, sync::Arc};
 use poise::serenity_prelude::{AttachmentType, GatewayIntents};
 use thiserror::Error;
 
+mod calc;
 mod world;
 
 struct Data {
@@ -83,6 +84,8 @@ enum TypstBotError {
     RenderError(#[from] RenderError),
     #[error("Serenity error: {0}")]
     SerenityError(#[from] serenity::Error),
+    #[error("Evaluation error: {0}")]
+    EvaluationError(#[from] calc::EvaluationError),
 }
 
 #[derive(Clone, Copy)]
@@ -281,6 +284,25 @@ async fn fonts(ctx: Context<'_>, #[flag] with_variants: bool) -> Result<(), Typs
     Ok(())
 }
 
+/// Evaluates an expression
+///
+/// Usage: -calc expression
+///
+/// Python syntax. Use -calc-s for LISP syntax
+#[poise::command(prefix_command)]
+async fn calc(ctx: Context<'_>, #[rest] expr: String) -> Result<(), TypstBotError> {
+    let value = {
+        let expression_tree = calc::parse_python(&expr);
+
+        calc::evaluate(expression_tree, &*calc::DEFAULT_LOOKUP_CONTEXT)?
+    };
+
+    ctx.send(|reply| reply.content(format!("{value}")).reply(true))
+        .await?;
+
+    Ok(())
+}
+
 #[poise::command(prefix_command)]
 async fn help(
     ctx: Context<'_>,
@@ -301,7 +323,7 @@ async fn main() {
         .token(std::env::var("BOT_TOKEN").expect("Missing BOT_TOKEN env var"))
         .intents(GatewayIntents::non_privileged() | GatewayIntents::MESSAGE_CONTENT)
         .options(poise::FrameworkOptions {
-            commands: vec![typst(), fonts(), help()],
+            commands: vec![typst(), fonts(), calc(), help()],
             prefix_options: poise::PrefixFrameworkOptions {
                 prefix: Some("-".into()),
                 edit_tracker: Some(poise::EditTracker::for_timespan(
