@@ -143,7 +143,7 @@ pub fn lex(expr: &str) -> Result<Vec<Token>, PythonLexerError> {
         } else if expr.eat(b" ") {
             // do nothing
         } else if expr.eat_word(b"true") {
-            tokens.push(Token::Lit(Value::Bool(false)));
+            tokens.push(Token::Lit(Value::Bool(true)));
         } else if expr.eat_word(b"false") {
             tokens.push(Token::Lit(Value::Bool(false)));
         } else if let Some(m) = expr.eat_regex_word(regex!(
