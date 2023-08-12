@@ -2,7 +2,7 @@ use once_cell::sync::Lazy;
 use regex::bytes::{Match, Regex};
 use thiserror::Error;
 
-use crate::calc::{Value, ArithOp};
+use crate::calc::{ArithOp, Value};
 
 #[derive(Clone, PartialEq, PartialOrd, Debug)]
 pub enum Token {
@@ -147,7 +147,7 @@ pub fn lex(expr: &str) -> Result<Vec<Token>, PythonLexerError> {
         } else if expr.eat_word(b"false") {
             tokens.push(Token::Lit(Value::Bool(false)));
         } else if let Some(m) = expr.eat_regex_word(regex!(
-            r"^[[:digit:]]+\.[[:digit:]]*f?|[[:digit:]]*\.[[:digit:]]+f?|[[:digit:]]f|[[:digit:]]+e[[:digit:]]+"
+            r"^([[:digit:]]+\.[[:digit:]]*f?|[[:digit:]]*\.[[:digit:]]+f?|[[:digit:]]f|[[:digit:]]+e[[:digit:]]+)"
         )) {
             let mut text = m.as_bytes();
             if text.last() == Some(&b'f') {
