@@ -5,7 +5,7 @@ use std::{collections::HashMap, fmt::Display, sync::Arc};
 use once_cell::sync::Lazy;
 use thiserror::Error;
 
-use self::python::lexer::PythonLexerError;
+use self::python::{lexer::PythonLexerError, parser::PythonParserError};
 
 // Data types
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
@@ -20,6 +20,7 @@ pub enum ArithOp {
     RightShift,
     BitAnd,
     BitOr,
+    BitXor,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
@@ -71,6 +72,8 @@ pub enum EvaluationError {
 pub enum CalcError {
     #[error("Lexer error: {0}")]
     PythonLexerError(#[from] PythonLexerError),
+    #[error("Parser error: {0}")]
+    PythonParserError(#[from] PythonParserError),
     #[error("Evaluation error: {0}")]
     EvaluationError(#[from] EvaluationError),
 }
@@ -88,6 +91,26 @@ impl Value {
             Self::Float(_) => Type::Float,
             Self::Bool(_) => Type::Bool,
         }
+    }
+}
+
+impl Display for ArithOp {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let symbol = match self {
+            Self::BitAnd => "&",
+            Self::BitOr => "|",
+            Self::BitXor => "^",
+            Self::Div => "/",
+            Self::FloorDiv => "//",
+            Self::LeftShift => "<<",
+            Self::RightShift => ">>",
+            Self::Minus => "-",
+            Self::Mul => "*",
+            Self::Plus =>"+",
+            Self::Pow => "**",
+        };
+
+        f.write_fmt(format_args!("'{symbol}'"))
     }
 }
 
@@ -125,6 +148,7 @@ impl Operator {
             Self::ArithOp(ArithOp::RightShift) => Ok(Arc::new(globals::right_shift)),
             Self::ArithOp(ArithOp::BitAnd) => Ok(Arc::new(globals::bit_and)),
             Self::ArithOp(ArithOp::BitOr) => Ok(Arc::new(globals::bit_or)),
+            Self::ArithOp(ArithOp::BitXor) => Ok(Arc::new(globals::bit_xor)),
             Self::Named(name) => lookup_context
                 .functions
                 .get(&name)
@@ -321,6 +345,20 @@ pub mod globals {
         Ok(Value::Int(result))
     }
 
+    pub fn bit_xor(v: &[Value]) -> Result<Value, EvaluationError> {
+        let mut result = 0i64;
+
+        for arg in v {
+            let Value::Int(arg) = arg else {
+                return Err(EvaluationError::TypeError { expected: Type::Int, got: arg.get_type() });
+            };
+
+            result ^= arg;
+        }
+
+        Ok(Value::Int(result))
+    }
+
     pub fn pow(v: &[Value]) -> Result<Value, EvaluationError> {
         match *v {
             [Value::Int(base), Value::Int(exp)] => Ok(Value::Int(base.pow(exp as u32))),
@@ -427,6 +465,7 @@ pub static DEFAULT_LOOKUP_CONTEXT: Lazy<LookupContext> = Lazy::new(|| LookupCont
         ("right_shift".to_string(), Arc::new(globals::right_shift)),
         ("bit_and".to_string(), Arc::new(globals::bit_and)),
         ("bit_or".to_string(), Arc::new(globals::bit_or)),
+        ("bit_xor".to_string(), Arc::new(globals::bit_xor)),
         ("pow".to_string(), Arc::new(globals::pow)),
         ("exp".to_string(), Arc::new(globals::exp)),
         ("log".to_string(), Arc::new(globals::log)),
@@ -462,5 +501,5 @@ pub fn evaluate(
 }
 
 pub fn parse_python(expr: &str) -> Result<ExpressionTree, CalcError> {
-    Ok(python::parser::parse(python::lexer::lex(expr)?))
+    Ok(python::parser::parse(python::lexer::lex(expr)?)?)
 }

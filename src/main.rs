@@ -304,6 +304,37 @@ async fn calc(ctx: Context<'_>, #[rest] expr: String) -> Result<(), TypstBotErro
     Ok(())
 }
 
+/// Lexes an expression
+///
+/// Usage: -lex expression
+#[poise::command(prefix_command)]
+async fn lex(ctx: Context<'_>, #[rest] expr: String) -> Result<(), TypstBotError> {
+    let tokens = calc::python::lexer::lex(&expr).map_err(calc::CalcError::PythonLexerError)?;
+
+    let mut result = String::new();
+    for token in tokens {
+        write!(result, "{token} ").unwrap();
+    }
+    result.pop();
+
+    ctx.send(|reply| reply.content(result).reply(true)).await?;
+
+    Ok(())
+}
+
+/// Parses an expression
+///
+/// Usage: -lex expression
+#[poise::command(prefix_command)]
+async fn parse(ctx: Context<'_>, #[rest] expr: String) -> Result<(), TypstBotError> {
+    let expression_tree = calc::parse_python(&expr)?;
+
+    ctx.send(|reply| reply.content(format!("{expression_tree:?}")).reply(true))
+        .await?;
+
+    Ok(())
+}
+
 #[poise::command(prefix_command)]
 async fn help(
     ctx: Context<'_>,
@@ -324,7 +355,7 @@ async fn main() {
         .token(std::env::var("BOT_TOKEN").expect("Missing BOT_TOKEN env var"))
         .intents(GatewayIntents::non_privileged() | GatewayIntents::MESSAGE_CONTENT)
         .options(poise::FrameworkOptions {
-            commands: vec![typst(), fonts(), calc(), help()],
+            commands: vec![typst(), fonts(), calc(), lex(), parse(), help()],
             prefix_options: poise::PrefixFrameworkOptions {
                 prefix: Some("-".into()),
                 edit_tracker: Some(poise::EditTracker::for_timespan(

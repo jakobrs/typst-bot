@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use once_cell::sync::Lazy;
 use regex::bytes::{Match, Regex};
 use thiserror::Error;
@@ -12,6 +14,19 @@ pub enum Token {
     RightParen,
     Comma,
     Global(String),
+}
+
+impl Display for Token {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::ArithOp(op) => op.fmt(f),
+            Self::Lit(value) => f.write_fmt(format_args!("{value}")),
+            Self::LeftParen => f.write_str("'('"),
+            Self::RightParen => f.write_str("')'"),
+            Self::Comma => f.write_str("','"),
+            Self::Global(name) => f.write_fmt(format_args!("'{name}'")),
+        }
+    }
 }
 
 #[derive(Error, Debug)]
@@ -142,6 +157,8 @@ pub fn lex(expr: &str) -> Result<Vec<Token>, PythonLexerError> {
             tokens.push(Token::ArithOp(ArithOp::BitAnd));
         } else if expr.eat(b"|") {
             tokens.push(Token::ArithOp(ArithOp::BitOr));
+        } else if expr.eat(b"^") {
+            tokens.push(Token::ArithOp(ArithOp::BitXor));
         } else if expr.eat(b"(") {
             tokens.push(Token::LeftParen);
         } else if expr.eat(b")") {
