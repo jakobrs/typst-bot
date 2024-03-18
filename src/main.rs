@@ -1,7 +1,9 @@
-use std::{borrow::Cow, fmt::Display, fmt::Write, io::Cursor, sync::Arc};
+use std::{fmt::Display, fmt::Write, io::Cursor, sync::Arc};
 
-use poise::serenity_prelude::{AttachmentType, GatewayIntents};
+use poise::CreateReply;
+use serenity::{builder::CreateAttachment, client::ClientBuilder, prelude::GatewayIntents};
 use thiserror::Error;
+use typst::{eval::Tracer, visualize::Rgb};
 
 mod calc;
 mod world;
@@ -14,7 +16,7 @@ type Error = TypstBotError;
 type Context<'a> = poise::Context<'a, Data, Error>;
 
 #[derive(Debug)]
-struct SourceErrors(Vec<typst::diag::SourceError>);
+struct SourceErrors(Vec<typst::diag::SourceDiagnostic>);
 
 impl Display for SourceErrors {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -23,8 +25,8 @@ impl Display for SourceErrors {
     }
 }
 
-impl From<Vec<typst::diag::SourceError>> for SourceErrors {
-    fn from(value: Vec<typst::diag::SourceError>) -> Self {
+impl From<Vec<typst::diag::SourceDiagnostic>> for SourceErrors {
+    fn from(value: Vec<typst::diag::SourceDiagnostic>) -> Self {
         Self(value)
     }
 }
@@ -32,7 +34,12 @@ impl From<Vec<typst::diag::SourceError>> for SourceErrors {
 impl std::error::Error for SourceErrors {}
 
 impl SourceErrors {
-    fn as_ansi_block(&self, source: &str, template_len: usize, world: &dyn typst::World) -> String {
+    fn as_ansi_block(
+        &self,
+        source: &str,
+        template_len: usize,
+        _world: &dyn typst::World,
+    ) -> String {
         use ariadne::{Color, Label, Report, ReportKind, Source};
         use std::io::Write;
 
@@ -44,7 +51,8 @@ impl SourceErrors {
         for error in &self.0 {
             output_cursor.write(b"```ansi\n").unwrap();
 
-            let mut range = error.range(world);
+            // let mut range = (*world).range(error.span).unwrap();
+            let mut range = 0..0;
             range.start -= template_len;
             range.end -= template_len;
 
@@ -107,22 +115,14 @@ impl Theme {
         }
     }
 
-    fn background_colour(self) -> typst::geom::Color {
+    fn background_colour(self) -> typst::visualize::Color {
         match self {
-            Theme::Light => typst::geom::Color::WHITE,
-            Theme::Dark => typst::geom::Color::Rgba(typst::geom::RgbaColor {
-                r: 0x31,
-                g: 0x33,
-                b: 0x38,
-                a: 0xff,
-            }),
-            Theme::Black => typst::geom::Color::BLACK,
-            Theme::Transparent => typst::geom::Color::Rgba(typst::geom::RgbaColor {
-                r: 0,
-                g: 0,
-                b: 0,
-                a: 0,
-            }),
+            Theme::Light => typst::visualize::Color::WHITE,
+            Theme::Dark => {
+                typst::visualize::Color::Rgb(Rgb::new(49. / 255., 51. / 255., 56. / 255., 1.))
+            }
+            Theme::Black => typst::visualize::Color::BLACK,
+            Theme::Transparent => typst::visualize::Color::Rgb(Rgb::new(0., 0., 0., 0.)),
         }
     }
 
@@ -210,10 +210,14 @@ async fn typst(
     let image = tokio::task::spawn_blocking({
         let with_source = with_source.clone();
         move || {
-            let document = typst::compile(&*with_source).map_err(|a| SourceErrors(*a))?;
+            let mut tracer = Tracer::new();
+            let document =
+                typst::compile(&*with_source, &mut tracer).map_err(|a| SourceErrors(a.to_vec()))?;
             if let [page] = &document.pages[..] {
-                let pixmap = typst::export::render(page, 10., config.theme.background_colour());
+                let pixmap =
+                    typst_render::render(&page.frame, 10., config.theme.background_colour());
                 Ok(pixmap.encode_png()?)
+                // Err(RenderError::TooManyPages) // TODO
             } else {
                 Err(RenderError::TooManyPages)
             }
@@ -223,22 +227,19 @@ async fn typst(
 
     match image {
         Ok(image) => {
-            ctx.send(|reply| {
-                reply
-                    .attachment(AttachmentType::Bytes {
-                        data: Cow::Owned(image),
-                        filename: "typst.png".into(),
-                    })
-                    .reply(true)
-            })
+            ctx.send(
+                CreateReply::default()
+                    .attachment(CreateAttachment::bytes(image, "typst.png"))
+                    .reply(true),
+            )
             .await?;
         }
         Err(RenderError::SourceErrors(errors)) => {
-            ctx.send(|reply| {
-                reply
+            ctx.send(
+                CreateReply::default()
                     .content(errors.as_ansi_block(&templated_source, template_len, &*with_source))
-                    .reply(true)
-            })
+                    .reply(true),
+            )
             .await?;
         }
         Err(err) => return Err(err.into()),
@@ -271,14 +272,11 @@ async fn fonts(ctx: Context<'_>, #[flag] with_variants: bool) -> Result<(), Typs
         }
     }
 
-    ctx.send(|reply| {
-        reply
-            .attachment(AttachmentType::Bytes {
-                data: Cow::Owned(message.into_bytes()),
-                filename: "fonts.txt".into(),
-            })
-            .reply(true)
-    })
+    ctx.send(
+        CreateReply::default()
+            .attachment(CreateAttachment::bytes(message, "fonts.txt"))
+            .reply(true),
+    )
     .await?;
 
     Ok(())
@@ -298,8 +296,12 @@ async fn calc(ctx: Context<'_>, #[rest] expr: String) -> Result<(), TypstBotErro
             .map_err(calc::CalcError::EvaluationError)?
     };
 
-    ctx.send(|reply| reply.content(format!("{value}")).reply(true))
-        .await?;
+    ctx.send(
+        CreateReply::default()
+            .reply(true)
+            .content(format!("{value}")),
+    )
+    .await?;
 
     Ok(())
 }
@@ -317,7 +319,8 @@ async fn lex(ctx: Context<'_>, #[rest] expr: String) -> Result<(), TypstBotError
     }
     result.pop();
 
-    ctx.send(|reply| reply.content(result).reply(true)).await?;
+    ctx.send(CreateReply::default().content(result).reply(true))
+        .await?;
 
     Ok(())
 }
@@ -329,8 +332,12 @@ async fn lex(ctx: Context<'_>, #[rest] expr: String) -> Result<(), TypstBotError
 async fn parse(ctx: Context<'_>, #[rest] expr: String) -> Result<(), TypstBotError> {
     let expression_tree = calc::parse_python(&expr)?;
 
-    ctx.send(|reply| reply.content(format!("{expression_tree:?}")).reply(true))
-        .await?;
+    ctx.send(
+        CreateReply::default()
+            .content(format!("{expression_tree:?}"))
+            .reply(true),
+    )
+    .await?;
 
     Ok(())
 }
@@ -351,16 +358,17 @@ async fn main() {
 
     let world = world::SandboxedWorld::new();
 
+    let token = std::env::var("BOT_TOKEN").expect("Missing BOT_TOKEN env var");
+    let intents = GatewayIntents::non_privileged() | GatewayIntents::MESSAGE_CONTENT;
+
     let framework = poise::Framework::builder()
-        .token(std::env::var("BOT_TOKEN").expect("Missing BOT_TOKEN env var"))
-        .intents(GatewayIntents::non_privileged() | GatewayIntents::MESSAGE_CONTENT)
         .options(poise::FrameworkOptions {
             commands: vec![typst(), fonts(), calc(), lex(), parse(), help()],
             prefix_options: poise::PrefixFrameworkOptions {
                 prefix: Some("-".into()),
-                edit_tracker: Some(poise::EditTracker::for_timespan(
+                edit_tracker: Some(Arc::new(poise::EditTracker::for_timespan(
                     std::time::Duration::from_secs(180),
-                )),
+                ))),
                 ..Default::default()
             },
             ..Default::default()
@@ -372,9 +380,15 @@ async fn main() {
                     world: Arc::new(world),
                 })
             })
-        });
+        })
+        .build();
 
-    if let Err(err) = framework.run().await {
+    let mut client = ClientBuilder::new(token, intents)
+        .framework(framework)
+        .await
+        .unwrap();
+
+    if let Err(err) = client.start().await {
         println!("Fatal error: {err:?}");
     }
 }

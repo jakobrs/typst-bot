@@ -2,10 +2,10 @@ use std::{path::Path, sync::Arc};
 
 use comemo::Prehashed;
 use typst::{
-    eval::{Datetime, Library},
-    font::{Font, FontBook},
+    foundations::{Bytes, Datetime},
     syntax::Source,
-    World,
+    text::{Font, FontBook},
+    Library, World,
 };
 
 pub struct SandboxedWorld {
@@ -53,7 +53,7 @@ impl SandboxedWorld {
             ];
 
             for file in EMBEDDED_FONTS {
-                for font in Font::iter(typst::util::Buffer::from_static(file)) {
+                for font in Font::iter(Bytes::from_static(file)) {
                     fontbook.push(font.info().clone());
                     fonts.push(font);
                 }
@@ -68,7 +68,7 @@ impl SandboxedWorld {
         }
 
         Self {
-            library: Prehashed::new(typst_library::build()),
+            library: Prehashed::new(typst::Library::builder().build()),
             fontbook: Prehashed::new(fontbook),
             fonts,
         }
@@ -88,10 +88,9 @@ impl SandboxedWorld {
 
                     match entry.path().extension().and_then(|s| s.to_str()) {
                         Some("ttf" | "otf" | "ttc" | "otc" | "TTF" | "OTF" | "TTC" | "OTC") => {
-                            // NOTE: this is probably a bad idea
-                            let contents: &'static [u8] = std::fs::read(entry.path())?.leak();
+                            let contents = std::fs::read(entry.path())?;
 
-                            for font in Font::iter(typst::util::Buffer::from_static(contents)) {
+                            for font in Font::iter(Bytes::from(contents)) {
                                 fontbook.push(font.info().clone());
                                 fonts.push(font);
                             }
@@ -118,17 +117,13 @@ impl World for WithSource {
         &self.sandbox.library
     }
 
-    fn main(&self) -> &typst::syntax::Source {
-        &self.source
+    fn main(&self) -> typst::syntax::Source {
+        self.source.clone()
     }
 
-    fn resolve(&self, _path: &std::path::Path) -> typst::diag::FileResult<typst::syntax::SourceId> {
-        Err(typst::diag::FileError::AccessDenied)
-    }
-
-    fn source(&self, id: typst::syntax::SourceId) -> &typst::syntax::Source {
+    fn source(&self, id: typst::syntax::FileId) -> typst::diag::FileResult<typst::syntax::Source> {
         if id == self.source.id() {
-            &self.source
+            Ok(self.source.clone())
         } else {
             panic!("No")
         }
@@ -138,11 +133,11 @@ impl World for WithSource {
         &self.sandbox.fontbook
     }
 
-    fn font(&self, id: usize) -> Option<typst::font::Font> {
+    fn font(&self, id: usize) -> Option<Font> {
         self.sandbox.fonts.get(id).cloned()
     }
 
-    fn file(&self, _path: &std::path::Path) -> typst::diag::FileResult<typst::util::Buffer> {
+    fn file(&self, _id: typst::syntax::FileId) -> typst::diag::FileResult<Bytes> {
         Err(typst::diag::FileError::AccessDenied)
     }
 
