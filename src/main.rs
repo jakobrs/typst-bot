@@ -352,6 +352,18 @@ async fn help(
     Ok(())
 }
 
+#[poise::command(prefix_command)]
+async fn version(ctx: Context<'_>) -> Result<(), TypstBotError> {
+    ctx.send(
+        CreateReply::default()
+            .content("typst-bot using Typst version 0.11.0")
+            .reply(true),
+    )
+    .await?;
+
+    Ok(())
+}
+
 #[tokio::main]
 async fn main() {
     tracing_subscriber::fmt::init();
@@ -363,7 +375,7 @@ async fn main() {
 
     let framework = poise::Framework::builder()
         .options(poise::FrameworkOptions {
-            commands: vec![typst(), fonts(), calc(), lex(), parse(), help()],
+            commands: vec![typst(), fonts(), calc(), lex(), parse(), help(), version()],
             prefix_options: poise::PrefixFrameworkOptions {
                 prefix: Some("-".into()),
                 edit_tracker: Some(Arc::new(poise::EditTracker::for_timespan(
