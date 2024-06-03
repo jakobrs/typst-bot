@@ -6,10 +6,12 @@ use thiserror::Error;
 use typst::{eval::Tracer, visualize::Rgb};
 
 mod calc;
+mod ordliste;
 mod world;
 
 struct Data {
     world: Arc<world::SandboxedWorld>,
+    dictionary: ordliste::Dictionary<'static>,
 }
 
 type Error = TypstBotError;
@@ -159,7 +161,7 @@ fn template(rest: &str, config: &RenderConfig) -> (String, usize) {
     templated += "\n";
 
     let template_len = templated.len();
-    templated += rest;
+    templated += &rest.replace("“”", "\"");
 
     (templated, template_len)
 }
@@ -343,6 +345,20 @@ async fn parse(ctx: Context<'_>, #[rest] expr: String) -> Result<(), TypstBotErr
 }
 
 #[poise::command(prefix_command)]
+async fn trans(ctx: Context<'_>, #[rest] term: String) -> Result<(), TypstBotError> {
+    let entry = ctx.data().dictionary.lookup(&term);
+
+    ctx.send(
+        CreateReply::default()
+            .content(format!("{:?}", entry))
+            .reply(true),
+    )
+    .await?;
+
+    Ok(())
+}
+
+#[poise::command(prefix_command)]
 async fn help(
     ctx: Context<'_>,
     #[description = "Command to show help about"] command: Option<String>,
@@ -375,7 +391,16 @@ async fn main() {
 
     let framework = poise::Framework::builder()
         .options(poise::FrameworkOptions {
-            commands: vec![typst(), fonts(), calc(), lex(), parse(), help(), version()],
+            commands: vec![
+                typst(),
+                fonts(),
+                calc(),
+                lex(),
+                parse(),
+                help(),
+                version(),
+                trans(),
+            ],
             prefix_options: poise::PrefixFrameworkOptions {
                 prefix: Some("-".into()),
                 edit_tracker: Some(Arc::new(poise::EditTracker::for_timespan(
@@ -390,6 +415,7 @@ async fn main() {
             Box::pin(async move {
                 Ok(Data {
                     world: Arc::new(world),
+                    dictionary: ordliste::Dictionary::new_default(),
                 })
             })
         })
