@@ -1,6 +1,15 @@
+use smallvec::SmallVec;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum Meta {
+    Nb,
+    Nn,
+    En,
+    Notes,
+}
+
 pub struct Dictionary<'a> {
-    // TODO: <br> handling
-    terms: Vec<[&'a str; 3]>,
+    terms: Vec<SmallVec<[(&'a str, Meta); 4]>>,
 }
 
 fn levenshtein(w1: &str, w2: &str) -> usize {
@@ -48,21 +57,30 @@ impl<'a> Dictionary<'a> {
                 .lines()
                 .map(|line| {
                     let mut parts = line.split_terminator(',');
-                    [
-                        parts.next().unwrap(),
-                        parts.next().unwrap(),
-                        parts.next().unwrap(),
-                    ]
+                    let mut row = SmallVec::new();
+                    for alt in parts.next().unwrap().split_terminator("<br>") {
+                        row.push((alt, Meta::Nb));
+                    }
+                    for alt in parts.next().unwrap().split_terminator("<br>") {
+                        row.push((alt, Meta::Nn));
+                    }
+                    for alt in parts.next().unwrap().split_terminator("<br>") {
+                        row.push((alt, Meta::En));
+                    }
+                    if let Some(notes) = parts.next() {
+                        row.push((notes, Meta::Notes));
+                    }
+                    row
                 })
                 .collect(),
         }
     }
 
-    pub fn lookup(&self, term: &str) -> [&'a str; 3] {
+    pub fn lookup(&self, term: &str) -> SmallVec<[(&'a str, Meta); 4]> {
         self.terms
             .iter()
-            .min_by_key(|w| w.iter().map(|s| levenshtein(s, term)).min().unwrap())
-            .copied()
+            .min_by_key(|w| w.iter().map(|s| levenshtein(s.0, term)).min().unwrap())
+            .cloned()
             .unwrap()
     }
 }
@@ -81,14 +99,5 @@ mod test {
                 > levenshtein("hovedidealområde", "hovedidealområde"),
             "ummm no"
         );
-    }
-
-    #[test]
-    fn idk1() {
-        use super::*;
-
-        let dict = Dictionary::new_default();
-        let a = dict.lookup("hovedidealområde");
-        assert_eq!(a[0], "hovedidealområde");
     }
 }

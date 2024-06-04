@@ -16,6 +16,7 @@ png = { version = "0.17.13", default-features = false }
 poise = "0.6.1"
 regex = "1.10.3"
 serenity = { version = "0.12.1", default-features = false, features = ["rustls_backend"] }
+smallvec = "1.13.2"
 thiserror = "1.0.58"
 tiny-skia = "0.11.4"
 tokio = { version = "1.36.0", features = ["rt", "rt-multi-thread", "macros"] }
