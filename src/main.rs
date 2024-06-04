@@ -6,12 +6,14 @@ use thiserror::Error;
 use typst::{eval::Tracer, visualize::Rgb};
 
 mod calc;
+mod oeis;
 mod ordliste;
 mod world;
 
 struct Data {
     world: Arc<world::SandboxedWorld>,
     dictionary: ordliste::Dictionary<'static>,
+    oeis: oeis::Context,
 }
 
 type Error = TypstBotError;
@@ -96,6 +98,8 @@ enum TypstBotError {
     SerenityError(#[from] serenity::Error),
     #[error("Calculation error: {0}")]
     CalcError(#[from] calc::CalcError),
+    #[error("Reqwest error: {0:?}")]
+    ReqwestError(#[from] reqwest::Error),
 }
 
 #[derive(Clone, Copy)]
@@ -345,20 +349,6 @@ async fn parse(ctx: Context<'_>, #[rest] expr: String) -> Result<(), TypstBotErr
 }
 
 #[poise::command(prefix_command)]
-async fn trans(ctx: Context<'_>, #[rest] term: String) -> Result<(), TypstBotError> {
-    let entry = ctx.data().dictionary.lookup(&term);
-
-    ctx.send(
-        CreateReply::default()
-            .content(format!("{:?}", entry))
-            .reply(true),
-    )
-    .await?;
-
-    Ok(())
-}
-
-#[poise::command(prefix_command)]
 async fn help(
     ctx: Context<'_>,
     #[description = "Command to show help about"] command: Option<String>,
@@ -399,7 +389,8 @@ async fn main() {
                 parse(),
                 help(),
                 version(),
-                trans(),
+                ordliste::commands::trans(),
+                oeis::commands::oeis(),
             ],
             prefix_options: poise::PrefixFrameworkOptions {
                 prefix: Some("-".into()),
@@ -416,6 +407,7 @@ async fn main() {
                 Ok(Data {
                     world: Arc::new(world),
                     dictionary: ordliste::Dictionary::new_default(),
+                    oeis: oeis::Context::new(),
                 })
             })
         })

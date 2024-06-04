@@ -101,3 +101,26 @@ mod test {
         );
     }
 }
+
+pub mod commands {
+    use poise::CreateReply;
+
+    use crate::{Context, TypstBotError};
+
+    #[poise::command(prefix_command)]
+    /// Search for a term in matematikkrådets matematisk ordliste
+    ///
+    /// Usage: -trans search term
+    pub async fn trans(ctx: Context<'_>, #[rest] term: String) -> Result<(), TypstBotError> {
+        let entry = ctx.data().dictionary.lookup(&term);
+
+        ctx.send(
+            CreateReply::default()
+                .content(format!("{:?}", entry))
+                .reply(true),
+        )
+        .await?;
+
+        Ok(())
+    }
+}
