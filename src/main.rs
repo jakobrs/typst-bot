@@ -298,7 +298,7 @@ async fn calc(ctx: Context<'_>, #[rest] expr: String) -> Result<(), TypstBotErro
     let value = {
         let expression_tree = calc::parse_python(&expr)?;
 
-        calc::evaluate(expression_tree, &*calc::DEFAULT_LOOKUP_CONTEXT)
+        calc::evaluate(expression_tree, &calc::DEFAULT_LOOKUP_CONTEXT)
             .map_err(calc::CalcError::EvaluationError)?
     };
 
@@ -333,7 +333,7 @@ async fn lex(ctx: Context<'_>, #[rest] expr: String) -> Result<(), TypstBotError
 
 /// Parses an expression
 ///
-/// Usage: -lex expression
+/// Usage: -parse expression
 #[poise::command(prefix_command)]
 async fn parse(ctx: Context<'_>, #[rest] expr: String) -> Result<(), TypstBotError> {
     let expression_tree = calc::parse_python(&expr)?;

@@ -56,7 +56,7 @@ impl Context {
             .json::<Response>()
             .await?
             .results
-            .unwrap_or_else(|| vec![]))
+            .unwrap_or_else(Vec::new))
     }
 }
 
@@ -68,7 +68,7 @@ pub mod commands {
     use crate::{Context, TypstBotError};
 
     #[poise::command(prefix_command)]
-    /// Search for OEIS sequence
+    /// Search for OEIS sequences
     ///
     /// Usage: -oeis [-n count] search terms
     pub async fn oeis(ctx: Context<'_>, #[rest] query: String) -> Result<(), TypstBotError> {

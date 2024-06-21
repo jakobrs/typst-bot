@@ -42,9 +42,9 @@ impl ParserContext {
     }
 
     fn next(&mut self) -> Option<Token> {
-        self.left.pop().and_then(|token| {
+        self.left.pop().map(|token| {
             self.pos += 1;
-            Some(token)
+            token
         })
     }
 
@@ -139,7 +139,9 @@ pub fn parse(tokens: impl Into<Vec<Token>>) -> Result<ExpressionTree> {
                 ArithOp::Mul | ArithOp::Div | ArithOp::FloorDiv
             ))
         ) {
-            let Some(Token::ArithOp(op)) = ctx.next() else { unreachable!() };
+            let Some(Token::ArithOp(op)) = ctx.next() else {
+                unreachable!()
+            };
 
             let next_factor = parse_factor(ctx)?;
 
@@ -160,7 +162,9 @@ pub fn parse(tokens: impl Into<Vec<Token>>) -> Result<ExpressionTree> {
             ctx.peek(),
             Some(Token::ArithOp(ArithOp::Plus | ArithOp::Minus))
         ) {
-            let Some(Token::ArithOp(op)) = ctx.next() else { unreachable!() };
+            let Some(Token::ArithOp(op)) = ctx.next() else {
+                unreachable!()
+            };
 
             let next_term = parse_term(ctx)?;
 

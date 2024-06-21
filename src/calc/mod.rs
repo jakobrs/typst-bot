@@ -106,7 +106,7 @@ impl Display for ArithOp {
             Self::RightShift => ">>",
             Self::Minus => "-",
             Self::Mul => "*",
-            Self::Plus =>"+",
+            Self::Plus => "+",
             Self::Pow => "**",
         };
 
@@ -212,17 +212,16 @@ pub mod globals {
         };
 
         for &arg in &v[1..] {
-            result = result
-                / match arg {
-                    Value::Int(n) => n as f64,
-                    Value::Float(n) => n,
-                    Value::Bool(_) => {
-                        return Err(EvaluationError::TypeError {
-                            expected: Type::Numeric,
-                            got: Type::Bool,
-                        })
-                    }
-                };
+            result /= match arg {
+                Value::Int(n) => n as f64,
+                Value::Float(n) => n,
+                Value::Bool(_) => {
+                    return Err(EvaluationError::TypeError {
+                        expected: Type::Numeric,
+                        got: Type::Bool,
+                    })
+                }
+            };
         }
 
         Ok(Value::Float(result))
@@ -244,16 +243,15 @@ pub mod globals {
         };
 
         for &arg in &v[1..] {
-            result = result
-                / match arg {
-                    Value::Int(n) => n,
-                    other => {
-                        return Err(EvaluationError::TypeError {
-                            expected: Type::Int,
-                            got: other.get_type(),
-                        })
-                    }
-                };
+            result /= match arg {
+                Value::Int(n) => n,
+                other => {
+                    return Err(EvaluationError::TypeError {
+                        expected: Type::Int,
+                        got: other.get_type(),
+                    })
+                }
+            };
         }
 
         Ok(Value::Int(result))
@@ -322,7 +320,10 @@ pub mod globals {
 
         for arg in v {
             let Value::Int(arg) = arg else {
-                return Err(EvaluationError::TypeError { expected: Type::Int, got: arg.get_type() });
+                return Err(EvaluationError::TypeError {
+                    expected: Type::Int,
+                    got: arg.get_type(),
+                });
             };
 
             result &= arg;
@@ -336,7 +337,10 @@ pub mod globals {
 
         for arg in v {
             let Value::Int(arg) = arg else {
-                return Err(EvaluationError::TypeError { expected: Type::Int, got: arg.get_type() });
+                return Err(EvaluationError::TypeError {
+                    expected: Type::Int,
+                    got: arg.get_type(),
+                });
             };
 
             result |= arg;
@@ -350,7 +354,10 @@ pub mod globals {
 
         for arg in v {
             let Value::Int(arg) = arg else {
-                return Err(EvaluationError::TypeError { expected: Type::Int, got: arg.get_type() });
+                return Err(EvaluationError::TypeError {
+                    expected: Type::Int,
+                    got: arg.get_type(),
+                });
             };
 
             result ^= arg;
@@ -474,8 +481,8 @@ pub static DEFAULT_LOOKUP_CONTEXT: Lazy<LookupContext> = Lazy::new(|| LookupCont
         ("sqrt".to_string(), Arc::new(globals::sqrt)),
     ]),
     constants: HashMap::from([
-        ("pi".to_string(), Value::Float(3.14159265358979)),
-        ("e".to_string(), Value::Float(1f64.exp())),
+        ("pi".to_string(), Value::Float(std::f64::consts::PI)),
+        ("e".to_string(), Value::Float(std::f64::consts::E)),
     ]),
 });
 
