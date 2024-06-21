@@ -163,7 +163,16 @@ fn template(rest: &str, config: &RenderConfig) -> (String, usize) {
     templated += "\n";
 
     let template_len = templated.len();
-    templated += &rest.replace("“”", "\"");
+    templated.reserve(rest.len());
+    let fix = |ch: char| match ch {
+        '‛' => '\'',
+        '“' => '"',
+        '”' => '"',
+        ch => ch,
+    };
+    for ch in rest.chars() {
+        templated.push(fix(ch));
+    }
 
     (templated, template_len)
 }
