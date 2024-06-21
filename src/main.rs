@@ -105,8 +105,8 @@ impl SourceErrors {
 
         #[cfg_attr(rustfmt, rustfmt_skip)]
         try_generate(Config { color: true, hints: true })
-            .or_else(|| { try_generate(Config { color: false, hints: true }) })
-            .or_else(|| { try_generate(Config { color: false, hints: false }) })
+            .or_else(|| try_generate(Config { color: false, hints: true }))
+            .or_else(|| try_generate(Config { color: false, hints: false }))
             .or_else(|| Some(format!("{:?}", self.0)))
             .unwrap()
     }
