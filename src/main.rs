@@ -38,25 +38,20 @@ impl From<Vec<typst::diag::SourceDiagnostic>> for SourceErrors {
 impl std::error::Error for SourceErrors {}
 
 impl SourceErrors {
-    fn as_ansi_block(
-        &self,
-        source: &str,
-        template_len: usize,
-        _world: &dyn typst::World,
-    ) -> String {
+    fn as_ansi_block(&self, source: &str, template_len: usize, world: &dyn typst::World) -> String {
         use ariadne::{Color, Label, Report, ReportKind, Source};
         use std::io::Write;
 
-        let source = &source[template_len..];
+        let text_source = &source[template_len..];
 
         let mut output = Vec::new();
         let mut output_cursor = Cursor::new(&mut output);
         // let mut colors = ColorGenerator::new();
         for error in &self.0 {
-            output_cursor.write(b"```ansi\n").unwrap();
+            output_cursor.write_all(b"```ansi\n").unwrap();
 
-            // let mut range = (*world).range(error.span).unwrap();
-            let mut range = 0..0;
+            let source = world.source(error.span.id().unwrap()).unwrap();
+            let mut range = source.range(error.span).unwrap();
             range.start -= template_len;
             range.end -= template_len;
 
@@ -68,10 +63,13 @@ impl SourceErrors {
                         .with_message(&error.message),
                 )
                 .finish()
-                .write_for_stdout(("source.typ", Source::from(source)), &mut output_cursor)
+                .write_for_stdout(
+                    ("source.typ", Source::from(text_source)),
+                    &mut output_cursor,
+                )
                 .unwrap();
 
-            output_cursor.write(b"```\n").unwrap();
+            output_cursor.write_all(b"```\n").unwrap();
         }
 
         String::from_utf8(output).unwrap()
