@@ -39,29 +39,56 @@ impl std::error::Error for SourceErrors {}
 
 impl SourceErrors {
     fn as_ansi_block(&self, source: &str, template_len: usize, world: &dyn typst::World) -> String {
-        use ariadne::{Color, Label, Report, ReportKind, Source};
+        use ariadne::{Label, Report, ReportKind, Source};
         use std::io::Write;
 
         let text_source = &source[template_len..];
 
-        let mut output = Vec::new();
-        let mut output_cursor = Cursor::new(&mut output);
-        // let mut colors = ColorGenerator::new();
-        for error in &self.0 {
+        static COLORS: &[ariadne::Color] = &[
+            ariadne::Color::Red,
+            ariadne::Color::Green,
+            ariadne::Color::Yellow,
+            ariadne::Color::Blue,
+            ariadne::Color::Cyan,
+        ];
+
+        struct Config {
+            color: bool,
+            hints: bool,
+        }
+
+        let try_generate = |config: Config| {
+            let Config { color, hints } = config;
+
+            let mut report =
+                Report::build(ReportKind::Error, "source.typ", 0).with_message("Compilation error");
+            let mut color_idx = 0;
+            for error in &self.0 {
+                let source = world.source(error.span.id().unwrap()).unwrap();
+                let mut range = source.range(error.span).unwrap();
+                range.start -= template_len;
+                range.end -= template_len;
+
+                let mut label = Label::new(("source.typ", range))
+                    .with_color(COLORS[color_idx])
+                    .with_message(&error.message);
+
+                if hints {
+                    for hint in &error.hints {
+                        label = label.with_message(hint);
+                    }
+                }
+
+                report = report.with_label(label);
+                color_idx = (color_idx + 1) % COLORS.len();
+            }
+
+            let mut output = Vec::new();
+            let mut output_cursor = Cursor::new(&mut output);
+
             output_cursor.write_all(b"```ansi\n").unwrap();
-
-            let source = world.source(error.span.id().unwrap()).unwrap();
-            let mut range = source.range(error.span).unwrap();
-            range.start -= template_len;
-            range.end -= template_len;
-
-            Report::build(ReportKind::Error, "source.typ", range.start)
-                .with_message("Compilation error")
-                .with_label(
-                    Label::new(("source.typ", range))
-                        .with_color(Color::Yellow)
-                        .with_message(&error.message),
-                )
+            report
+                .with_config(ariadne::Config::default().with_color(color))
                 .finish()
                 .write_for_stdout(
                     ("source.typ", Source::from(text_source)),
@@ -70,9 +97,18 @@ impl SourceErrors {
                 .unwrap();
 
             output_cursor.write_all(b"```\n").unwrap();
-        }
 
-        String::from_utf8(output).unwrap()
+            eprintln!("Len: {}", output.len());
+
+            (output.len() < 2000).then(|| String::from_utf8(output).unwrap())
+        };
+
+        #[cfg_attr(rustfmt, rustfmt_skip)]
+        try_generate(Config { color: true, hints: true })
+            .or_else(|| { try_generate(Config { color: false, hints: true }) })
+            .or_else(|| { try_generate(Config { color: false, hints: false }) })
+            .or_else(|| Some(format!("{:?}", self.0)))
+            .unwrap()
     }
 }
 
