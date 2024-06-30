@@ -1,9 +1,10 @@
 use std::{path::Path, sync::Arc};
 
+use chrono::Datelike;
 use comemo::Prehashed;
 use typst::{
     foundations::{Bytes, Datetime},
-    syntax::Source,
+    syntax::{FileId, Source, VirtualPath},
     text::{Font, FontBook},
     Library, World,
 };
@@ -12,11 +13,14 @@ pub struct SandboxedWorld {
     library: Prehashed<Library>,
     pub(crate) fontbook: Prehashed<FontBook>,
     fonts: Vec<Font>,
+
+    source_id: FileId,
 }
 
-pub struct WithSource {
+pub struct InitialisedWorld {
     sandbox: Arc<SandboxedWorld>,
-    pub(crate) source: Source,
+    source: Source,
+    now: chrono::DateTime<chrono::Utc>,
 }
 
 impl SandboxedWorld {
@@ -67,10 +71,13 @@ impl SandboxedWorld {
             }
         }
 
+        let source_id = FileId::new_fake(VirtualPath::new("<source>"));
+
         Self {
             library: Prehashed::new(typst::Library::builder().build()),
             fontbook: Prehashed::new(fontbook),
             fonts,
+            source_id,
         }
     }
 
@@ -104,15 +111,18 @@ impl SandboxedWorld {
         Ok(())
     }
 
-    pub fn with_source(self: Arc<Self>, source: &str) -> WithSource {
-        WithSource {
+    pub fn with_source(self: Arc<Self>, source: &str) -> InitialisedWorld {
+        let source_id = self.source_id;
+
+        InitialisedWorld {
             sandbox: self,
-            source: Source::detached(source),
+            source: Source::new(source_id, source.into()),
+            now: chrono::Utc::now(),
         }
     }
 }
 
-impl World for WithSource {
+impl World for InitialisedWorld {
     fn library(&self) -> &Prehashed<Library> {
         &self.sandbox.library
     }
@@ -125,7 +135,7 @@ impl World for WithSource {
         if id == self.source.id() {
             Ok(self.source.clone())
         } else {
-            panic!("No")
+            Err(typst::diag::FileError::AccessDenied)
         }
     }
 
@@ -142,6 +152,8 @@ impl World for WithSource {
     }
 
     fn today(&self, _offset: Option<i64>) -> Option<Datetime> {
-        None
+        let now = self.now.with_timezone(&chrono::Local).fixed_offset();
+
+        Datetime::from_ymd(now.year() as _, now.month() as _, now.day() as _)
     }
 }
