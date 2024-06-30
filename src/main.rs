@@ -1,10 +1,16 @@
-use std::{fmt::Display, fmt::Write, io::Cursor, sync::Arc};
+use std::{
+    fmt::{Display, Write},
+    io::Cursor,
+    sync::Arc,
+};
 
 use poise::CreateReply;
 use serenity::{builder::CreateAttachment, client::ClientBuilder, prelude::GatewayIntents};
+use smallvec::SmallVec;
 use thiserror::Error;
 use typst::{eval::Tracer, visualize::Rgb};
 
+mod arg_parser;
 mod calc;
 mod oeis;
 mod ordliste;
@@ -134,6 +140,8 @@ enum TypstBotError {
     CalcError(#[from] calc::CalcError),
     #[error("Reqwest error: {0:?}")]
     ReqwestError(#[from] reqwest::Error),
+    #[error("Argument parser error: {0}")]
+    ArgParserError(#[from] arg_parser::ArgParserError),
 }
 
 #[derive(Clone, Copy)]
@@ -145,16 +153,6 @@ enum Theme {
 }
 
 impl Theme {
-    fn from_command_name(name: &str) -> Self {
-        match name {
-            "typst-light" | "typst-prose" => Theme::Light,
-            "typst-dark" => Theme::Dark,
-            "typst-black" => Theme::Black,
-            "typst-transparent" | "typst-trans" => Theme::Transparent,
-            _ => Theme::Dark,
-        }
-    }
-
     fn background_colour(self) -> typst::visualize::Color {
         match self {
             Theme::Light => typst::visualize::Color::WHITE,
@@ -174,15 +172,22 @@ impl Theme {
     }
 }
 
+#[derive(Clone, Copy)]
+enum Format {
+    Png,
+    Svg,
+}
+
 struct RenderConfig {
+    format: Format,
     theme: Theme,
-    prose: bool,
+    fw: bool,
 }
 
 fn template(rest: &str, config: &RenderConfig) -> (String, usize) {
     let mut templated = String::new();
 
-    if config.prose {
+    if config.fw {
         templated += "#set page(width: 15cm, height: auto, margin: 1cm)\n";
     } else {
         templated += "#set page(width: auto, height: auto, margin: 0.5cm)\n";
@@ -215,46 +220,54 @@ fn template(rest: &str, config: &RenderConfig) -> (String, usize) {
 
 /// Renders Typst code in a sandbox.
 ///
-/// Usage: -typst (code)
+/// Usage: -typst [flags...] (code)
 ///
-/// Use one of these aliases to customise the template and theme:
+/// Available flags:
+/// - --svg:   generate svg
+/// - --png:   generate png [default]
 ///
-/// Aliases:
-/// - typst-light
-/// - typst-dark
-/// - typst-black
-/// - typst-transparent
-/// - typst-trans
-/// - typst-prose
-#[poise::command(
-    prefix_command,
-    track_edits,
-    broadcast_typing,
-    aliases(
-        "typst-light",
-        "typst-dark",
-        "typst-black",
-        "typst-transparent",
-        "typst-trans",
-        "typst-prose"
-    )
-)]
+/// - --light: light bg
+/// - --dark:  dark bg [default]
+/// - --black: black bg
+/// - --trans: transparent bg
+/// - --fw:    fixed width
+/// - --prose: implies --fw, --light
+#[poise::command(prefix_command, track_edits, broadcast_typing)]
 async fn typst(
     ctx: Context<'_>,
     #[description = "Code"]
     #[rest]
     rest: String,
 ) -> Result<(), Error> {
+    use arg_parser::ArgParser;
+
     let world = ctx.data().world.clone();
 
-    let config = RenderConfig {
-        theme: Theme::from_command_name(ctx.invoked_command_name()),
-        prose: ctx.invoked_command_name() == "typst-prose",
-    };
+    let arg_parser = ArgParser::with_state(RenderConfig {
+        format: Format::Png,
+        theme: Theme::Dark,
+        fw: false,
+    })
+    .arg("svg", |cfg| cfg.format = Format::Svg)
+    .arg("png", |cfg| cfg.format = Format::Png)
+    .arg("light", |cfg| cfg.theme = Theme::Light)
+    .arg("dark", |cfg| cfg.theme = Theme::Dark)
+    .arg("black", |cfg| cfg.theme = Theme::Black)
+    .arg("trans", |cfg| cfg.theme = Theme::Transparent)
+    .arg("fw", |cfg| cfg.fw = true)
+    .arg("prose", |cfg| {
+        cfg.theme = Theme::Transparent;
+        cfg.fw = true
+    });
 
-    let (templated_source, template_len) = template(&rest, &config);
+    let (config, source) = arg_parser.run(&rest)?;
+    let (templated_source, template_len) = template(source, &config);
 
     let with_source = Arc::new(world.with_source(&templated_source));
+
+    struct CompileResult {
+        pages: SmallVec<[Vec<u8>; 4]>,
+    }
 
     let image = tokio::task::spawn_blocking({
         let with_source = with_source.clone();
@@ -262,26 +275,46 @@ async fn typst(
             let mut tracer = Tracer::new();
             let document =
                 typst::compile(&*with_source, &mut tracer).map_err(|a| SourceErrors(a.to_vec()))?;
-            if let [page] = &document.pages[..] {
-                let pixmap =
-                    typst_render::render(&page.frame, 10., config.theme.background_colour());
-                Ok(pixmap.encode_png()?)
-                // Err(RenderError::TooManyPages) // TODO
-            } else {
-                Err(RenderError::TooManyPages)
+
+            if document.pages.len() > 4 || document.pages.len() < 1 {
+                return Err(RenderError::TooManyPages);
             }
+
+            let mut pages = SmallVec::new();
+            for page in document.pages {
+                match config.format {
+                    Format::Svg => {
+                        let data = typst_svg::svg(&page.frame);
+                        pages.push(data.into());
+                    }
+                    Format::Png => {
+                        let pixmap = typst_render::render(
+                            &page.frame,
+                            10.,
+                            config.theme.background_colour(),
+                        );
+                        pages.push(pixmap.encode_png()?);
+                    }
+                }
+            }
+
+            Ok(CompileResult { pages })
         }
     })
     .await?;
 
+    let filename = match config.format {
+        Format::Svg => "typst.svg",
+        Format::Png => "typst.png",
+    };
+
     match image {
-        Ok(image) => {
-            ctx.send(
-                CreateReply::default()
-                    .attachment(CreateAttachment::bytes(image, "typst.png"))
-                    .reply(true),
-            )
-            .await?;
+        Ok(CompileResult { pages }) => {
+            let mut reply = CreateReply::default();
+            for page in pages {
+                reply = reply.attachment(CreateAttachment::bytes(page, filename));
+            }
+            ctx.send(reply.reply(true)).await?;
         }
         Err(RenderError::SourceErrors(errors)) => {
             ctx.send(
