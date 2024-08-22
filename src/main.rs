@@ -15,6 +15,7 @@ mod calc;
 mod oeis;
 mod ordliste;
 mod world;
+mod xsampa;
 
 struct Data {
     world: Arc<world::SandboxedWorld>,
@@ -467,6 +468,7 @@ async fn main() {
                 version(),
                 ordliste::commands::trans(),
                 oeis::commands::oeis(),
+                xsampa::commands::xsampa(),
             ],
             prefix_options: poise::PrefixFrameworkOptions {
                 prefix: Some("-".into()),
