@@ -189,7 +189,7 @@ fn template(rest: &str, config: &RenderConfig) -> (String, usize) {
     let mut templated = String::new();
 
     if config.fw {
-        templated += "#set page(width: 15cm, height: auto, margin: 1cm)\n";
+        templated += "#set page(width: 300pt, height: auto, margin: 10pt)\n";
     } else {
         templated += "#set page(width: auto, height: auto, margin: 0.5cm)\n";
     }
@@ -231,7 +231,8 @@ fn template(rest: &str, config: &RenderConfig) -> (String, usize) {
 /// - --dark:  dark bg [default]
 /// - --black: black bg
 /// - --trans: transparent bg
-/// - --fw:    fixed width
+/// - --fw:    fixed width [default]
+/// - --no-fw: disable fixed width
 /// - --prose: implies --fw, --light
 #[poise::command(prefix_command, track_edits, broadcast_typing)]
 async fn typst(
@@ -246,8 +247,8 @@ async fn typst(
 
     let arg_parser = ArgParser::with_state(RenderConfig {
         format: Format::Png,
-        theme: Theme::Dark,
-        fw: false,
+        theme: Theme::Transparent,
+        fw: true,
     })
     .arg("svg", |cfg| cfg.format = Format::Svg)
     .arg("png", |cfg| cfg.format = Format::Png)
@@ -256,6 +257,7 @@ async fn typst(
     .arg("black", |cfg| cfg.theme = Theme::Black)
     .arg("trans", |cfg| cfg.theme = Theme::Transparent)
     .arg("fw", |cfg| cfg.fw = true)
+    .arg("no-fw", |cfg| cfg.fw = false)
     .arg("prose", |cfg| {
         cfg.theme = Theme::Transparent;
         cfg.fw = true
