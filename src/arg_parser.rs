@@ -36,16 +36,17 @@ impl<T> ArgParser<T> {
 
     pub fn run(mut self, mut text: &str) -> Result<(T, &str), ArgParserError> {
         let mut state = self.state;
-        while text.len() >= 2 && &text[..2] == "--" {
-            let space_pos = text.find(' ');
+        while text.len() >= 2 && &text[..1] == "-" {
+            let space_pos = text.find(char::is_whitespace);
+            let offset = if &text[..2] == "--" { 2 } else { 1 };
             let arg_name;
             match space_pos {
                 Some(n) => {
-                    arg_name = &text[2..n];
+                    arg_name = &text[offset..n];
                     text = &text[n + 1..];
                 }
                 None => {
-                    arg_name = &text[2..];
+                    arg_name = &text[offset..];
                     text = "";
                 }
             }
