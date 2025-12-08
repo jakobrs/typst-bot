@@ -1,17 +1,17 @@
 use std::{path::Path, sync::Arc};
 
 use chrono::Datelike;
-use comemo::Prehashed;
 use typst::{
     foundations::{Bytes, Datetime},
     syntax::{FileId, Source, VirtualPath},
     text::{Font, FontBook},
-    Library, World,
+    utils::LazyHash,
+    Library, LibraryExt, World,
 };
 
 pub struct SandboxedWorld {
-    library: Prehashed<Library>,
-    pub(crate) fontbook: Prehashed<FontBook>,
+    library: LazyHash<Library>,
+    pub(crate) fontbook: LazyHash<FontBook>,
     fonts: Vec<Font>,
 
     source_id: FileId,
@@ -57,7 +57,7 @@ impl SandboxedWorld {
             ];
 
             for file in EMBEDDED_FONTS {
-                for font in Font::iter(Bytes::from_static(file)) {
+                for font in Font::iter(Bytes::new(file)) {
                     fontbook.push(font.info().clone());
                     fonts.push(font);
                 }
@@ -74,8 +74,8 @@ impl SandboxedWorld {
         let source_id = FileId::new_fake(VirtualPath::new("<source>"));
 
         Self {
-            library: Prehashed::new(typst::Library::builder().build()),
-            fontbook: Prehashed::new(fontbook),
+            library: LazyHash::new(typst::Library::default()),
+            fontbook: LazyHash::new(fontbook),
             fonts,
             source_id,
         }
@@ -97,7 +97,7 @@ impl SandboxedWorld {
                         Some("ttf" | "otf" | "ttc" | "otc" | "TTF" | "OTF" | "TTC" | "OTC") => {
                             let contents = std::fs::read(entry.path())?;
 
-                            for font in Font::iter(Bytes::from(contents)) {
+                            for font in Font::iter(Bytes::new(contents)) {
                                 fontbook.push(font.info().clone());
                                 fonts.push(font);
                             }
@@ -123,12 +123,12 @@ impl SandboxedWorld {
 }
 
 impl World for InitialisedWorld {
-    fn library(&self) -> &Prehashed<Library> {
+    fn library(&self) -> &LazyHash<Library> {
         &self.sandbox.library
     }
 
-    fn main(&self) -> typst::syntax::Source {
-        self.source.clone()
+    fn main(&self) -> typst::syntax::FileId {
+        self.source.id()
     }
 
     fn source(&self, id: typst::syntax::FileId) -> typst::diag::FileResult<typst::syntax::Source> {
@@ -139,7 +139,7 @@ impl World for InitialisedWorld {
         }
     }
 
-    fn book(&self) -> &Prehashed<FontBook> {
+    fn book(&self) -> &LazyHash<FontBook> {
         &self.sandbox.fontbook
     }
 

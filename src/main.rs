@@ -8,7 +8,7 @@ use poise::CreateReply;
 use serenity::{builder::CreateAttachment, client::ClientBuilder, prelude::GatewayIntents};
 use smallvec::SmallVec;
 use thiserror::Error;
-use typst::{eval::Tracer, visualize::Rgb};
+use typst::{layout::PagedDocument, visualize::Rgb};
 
 mod arg_parser;
 mod calc;
@@ -68,7 +68,7 @@ impl SourceErrors {
             let Config { color, hints } = config;
 
             let mut report =
-                Report::build(ReportKind::Error, "source.typ", 0).with_message("Compilation error");
+                Report::build(ReportKind::Error, 0..0).with_message("Compilation error");
             let mut color_idx = 0;
             for error in &self.0 {
                 let source = world.source(error.span.id().unwrap()).unwrap();
@@ -76,7 +76,7 @@ impl SourceErrors {
                 range.start -= template_len;
                 range.end -= template_len;
 
-                let mut label = Label::new(("source.typ", range))
+                let mut label = Label::new(range)
                     .with_color(COLORS[color_idx])
                     .with_message(&error.message);
 
@@ -97,10 +97,7 @@ impl SourceErrors {
             report
                 .with_config(ariadne::Config::default().with_color(color))
                 .finish()
-                .write_for_stdout(
-                    ("source.typ", Source::from(text_source)),
-                    &mut output_cursor,
-                )
+                .write_for_stdout(Source::from(text_source), &mut output_cursor)
                 .unwrap();
 
             output_cursor.write_all(b"```\n").unwrap();
@@ -197,6 +194,9 @@ fn template(rest: &str, config: &RenderConfig) -> (String, usize) {
     templated += "#set text(";
     templated += config.theme.foreground_colour();
     templated += ")\n";
+    templated += "#set page(fill: ";
+    templated += config.theme.background_colour().to_hex().as_str();
+    templated += ")\n";
 
     templated += "
         #show <inline>: box
@@ -275,9 +275,9 @@ async fn typst(
     let image = tokio::task::spawn_blocking({
         let with_source = with_source.clone();
         move || {
-            let mut tracer = Tracer::new();
-            let document =
-                typst::compile(&*with_source, &mut tracer).map_err(|a| SourceErrors(a.to_vec()))?;
+            let document: PagedDocument = typst::compile(&*with_source)
+                .output
+                .map_err(|a| SourceErrors(a.to_vec()))?;
 
             if document.pages.len() > 4 || document.pages.len() < 1 {
                 return Err(RenderError::TooManyPages);
@@ -287,15 +287,11 @@ async fn typst(
             for page in document.pages {
                 match config.format {
                     Format::Svg => {
-                        let data = typst_svg::svg(&page.frame);
+                        let data = typst_svg::svg(&page);
                         pages.push(data.into());
                     }
                     Format::Png => {
-                        let pixmap = typst_render::render(
-                            &page.frame,
-                            10.,
-                            config.theme.background_colour(),
-                        );
+                        let pixmap = typst_render::render(&page, 10.);
                         pages.push(pixmap.encode_png()?);
                     }
                 }
