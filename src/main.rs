@@ -194,9 +194,12 @@ fn template(rest: &str, config: &RenderConfig) -> (String, usize) {
     templated += "#set text(";
     templated += config.theme.foreground_colour();
     templated += ")\n";
-    templated += "#set page(fill: ";
+    templated += "#set text(font: \"Noto Sans\")\n";
+    templated += "#set page(fill: rgb(\"";
     templated += config.theme.background_colour().to_hex().as_str();
-    templated += ")\n";
+    templated += "\"))\n";
+
+    templated += "#let sit(x) = text(font: \"nasin-nanpa\", x)\n";
 
     templated += "
         #show <inline>: box
@@ -337,6 +340,8 @@ async fn fonts(ctx: Context<'_>, #[flag] with_variants: bool) -> Result<(), Typs
     let world = ctx.data().world.clone();
 
     let mut message = String::new();
+
+    writeln!(&mut message, "See <https://github.com/jakobrs/typst-bot/tree/master/assets/fonts/LICENSES.md> and <https://github.com/typst/typst-assets/> for licenses for embedded fonts").unwrap();
 
     for (name, fonts) in world.fontbook.families() {
         writeln!(&mut message, "Family: {name}").unwrap();

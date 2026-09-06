@@ -3635,6 +3635,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "98b250f6c1ddd0f435db2283c7eb36a9b72bee34d6397625bf7f817c64ad7c62"
 
 [[package]]
+name = "typst-assets"
+version = "0.15.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bcee505dac6702dd1c5e65aa2e94a6179d19ee09e2e5637d7313db91765dc4e0"
+dependencies = [
+ "bitflags 2.10.0",
+]
+
+[[package]]
 name = "typst-bot"
 version = "0.1.0"
 dependencies = [
@@ -3656,6 +3665,7 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "typst",
+ "typst-assets 0.15.1",
  "typst-render",
  "typst-svg",
  "walkdir",
@@ -3693,7 +3703,7 @@ dependencies = [
  "palette",
  "rustc-hash",
  "time",
- "typst-assets",
+ "typst-assets 0.14.1",
  "typst-library",
  "typst-macros",
  "typst-svg",
@@ -3726,7 +3736,7 @@ dependencies = [
  "rustybuzz",
  "smallvec",
  "ttf-parser",
- "typst-assets",
+ "typst-assets 0.14.1",
  "typst-library",
  "typst-macros",
  "typst-syntax",
@@ -3789,7 +3799,7 @@ dependencies = [
  "ttf-parser",
  "two-face",
  "typed-arena",
- "typst-assets",
+ "typst-assets 0.14.1",
  "typst-macros",
  "typst-syntax",
  "typst-timing",
@@ -3848,7 +3858,7 @@ dependencies = [
  "resvg",
  "tiny-skia",
  "ttf-parser",
- "typst-assets",
+ "typst-assets 0.14.1",
  "typst-library",
  "typst-macros",
  "typst-timing",
@@ -3869,7 +3879,7 @@ dependencies = [
  "image",
  "rustc-hash",
  "ttf-parser",
- "typst-assets",
+ "typst-assets 0.14.1",
  "typst-library",
  "typst-macros",
  "typst-timing",

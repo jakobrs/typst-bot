@@ -31,30 +31,22 @@ impl SandboxedWorld {
         #[cfg(feature = "embed-fonts")]
         {
             #[cfg(feature = "embed-emoji")]
-            const FONT_COUNT: usize = 16;
+            const FONT_COUNT: usize = 2;
             #[cfg(not(feature = "embed-emoji"))]
-            const FONT_COUNT: usize = 14;
+            const FONT_COUNT: usize = 1;
 
             const EMBEDDED_FONTS: [&[u8]; FONT_COUNT] = [
-                include_bytes!("../assets/fonts/DejaVuSansMono.ttf"),
-                include_bytes!("../assets/fonts/DejaVuSansMono-Bold.ttf"),
-                include_bytes!("../assets/fonts/DejaVuSansMono-Oblique.ttf"),
-                include_bytes!("../assets/fonts/DejaVuSansMono-BoldOblique.ttf"),
-                include_bytes!("../assets/fonts/LinLibertine_R.ttf"),
-                include_bytes!("../assets/fonts/LinLibertine_RB.ttf"),
-                include_bytes!("../assets/fonts/LinLibertine_RBI.ttf"),
-                include_bytes!("../assets/fonts/LinLibertine_RI.ttf"),
-                include_bytes!("../assets/fonts/NewCM10-Regular.otf"),
-                include_bytes!("../assets/fonts/NewCM10-Bold.otf"),
-                include_bytes!("../assets/fonts/NewCM10-Italic.otf"),
-                include_bytes!("../assets/fonts/NewCM10-BoldItalic.otf"),
-                include_bytes!("../assets/fonts/NewCMMath-Book.otf"),
-                include_bytes!("../assets/fonts/NewCMMath-Regular.otf"),
                 #[cfg(feature = "embed-emoji")]
                 include_bytes!("../assets/fonts/NotoColorEmoji.ttf"),
-                #[cfg(feature = "embed-emoji")]
-                include_bytes!("../assets/fonts/TwitterColorEmoji.ttf"),
+                include_bytes!("../assets/fonts/nasin-nanpa-4.0.2.otf"),
             ];
+
+            for file in typst_assets::fonts() {
+                for font in Font::iter(Bytes::new(file)) {
+                    fontbook.push(font.info().clone());
+                    fonts.push(font);
+                }
+            }
 
             for file in EMBEDDED_FONTS {
                 for font in Font::iter(Bytes::new(file)) {
